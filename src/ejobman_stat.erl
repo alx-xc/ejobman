@@ -39,6 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 -export([stat_t/0, stat_t/1, add_stat_t/2, upd_stat_t/3, upd_stat_t/4]).
+-export([make_stat_t_info_html/0, make_one_stat_html/1]).
 -export([
          reload_config_signal/0
         ]).
@@ -459,3 +460,58 @@ process_reload_config(St) ->
     prepare_storage(C).
 
 %%-----------------------------------------------------------------------------
+
+make_stat_t_info_html() ->
+    List = stat_t(),
+    L1 = proplists:get_value("minute data", List),
+    L2 = proplists:get_value("hour data", List),
+    L1j = estat_misc:make_joined_list(L1),
+    L2j = estat_misc:make_joined_list(L2),
+    make_one_stat_html([{"minute data", L1j}, {"hour data", L2j}]).
+
+make_one_stat_html(List) ->
+    F = fun({{Dt, Group}, {W_cur, W_max, Q_cur, Q_max}}) ->
+        [
+            "<tr>",
+            "<td>", mpln_misc_time:make_str2_int(Dt), "</td>",
+            "<td>", mpln_misc_web:make_string(Group), "</td>",
+            "<td>", mpln_misc_web:make_string(W_cur), "</td>",
+            "<td>", mpln_misc_web:make_string(W_max), "</td>",
+            "<td>", mpln_misc_web:make_string(Q_cur), "</td>",
+            "<td>", mpln_misc_web:make_string(Q_max), "</td>",
+            "</tr>\n"
+        ];
+        ({K, V}) ->
+            [
+                "<tr>",
+                "<td colspan=2>",
+                mpln_misc_web:make_term_string(K),
+                "</td>",
+                "<td colspan=4>",
+                mpln_misc_web:make_term_string(V),
+                "</td>",
+                "</tr>\n"
+            ]
+    end,
+    F_big = fun({Tag, L}) ->
+        [
+            "<html><body>\n<p>\n",
+            "<table ", ?TABC, ">",
+            "<tr><td colspan=6 bgcolor=\"#CCCCDA\">",
+            mpln_misc_web:make_term_string(Tag),
+            "</td></tr>\n",
+            "<tr>",
+            "<td>time</td>",
+            "<td>group</td>",
+            "<td>work current</td>",
+            "<td>work max</td>\n",
+            "<td>queue current</td>",
+            "<td>queue max</td>",
+            "</tr>\n",
+            lists:map(F, L),
+            "<table>\n",
+            "<p>\n",
+            "</body></html>\n"
+        ]
+    end,
+    lists:flatten(lists:map(F_big, List)).
