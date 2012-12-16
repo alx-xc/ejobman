@@ -159,7 +159,7 @@ start(Rses) ->
     User = Rses#rses.user,
     Password = Rses#rses.password,
     Vhost = Rses#rses.vhost,
-    {ok, Connection} = amqp_connection:start(network, #amqp_params{
+    {ok, Connection} = amqp_connection:start(#amqp_params_network{
         username = User,
         password = Password,
         host = Host,
