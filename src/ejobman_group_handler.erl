@@ -47,6 +47,7 @@
 
 -include("group_handler.hrl").
 -include("amqp_client.hrl").
+-include("rabbit_session.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
@@ -54,10 +55,8 @@
 init([List]) ->
     New = prepare_all(List),
     process_flag(trap_exit, true), % to perform amqp channel teardown
-    erpher_jit_log:add_jit_msg(New#egh.jit_log_data, New#egh.id,
-                               New#egh.group, 2, 'init'),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group},
-                    New#egh.debug, run, 1),
+    erpher_jit_log:add_jit_msg(New#egh.jit_log_data, New#egh.id, New#egh.group, 2, 'init'),
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group}, New#egh.debug, run, 1),
     {ok, New}.
 
 %------------------------------------------------------------------------------
@@ -96,28 +95,24 @@ handle_cast(stop, St) ->
 
 handle_cast({cmd_result, _Res, T1, T2, Id}, St) ->
     Dur = timer:now_diff(T2, T1),
-    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur},
-                    St#egh.debug, job, 2),
+    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur}, St#egh.debug, job, 2),
     St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id),
     New = ejobman_group_handler_cmd:do_waiting_jobs(St_r),
     {noreply, New};
 
 handle_cast({send_ack, Id, Tag}, #egh{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
-    mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
-        St#egh.debug, msg, 2),
+    mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res}, St#egh.debug, msg, 2),
     {noreply, St};
 
 handle_cast(_Other, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
-        St#egh.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other}, St#egh.debug, run, 2),
     {noreply, St}.
 
 %------------------------------------------------------------------------------
 terminate(Reason, #egh{id=Id, group=Group, conn=Conn} = State) ->
     ejobman_rb:teardown_channel(Conn),
-    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Id, Group,
-                               2, 'terminate'),
+    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Id, Group, 2, 'terminate'),
     send_jit_log(Reason, State),
     ets:delete(State#egh.jit_log_data),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#egh.debug, run, 1),
@@ -129,21 +124,17 @@ terminate(Reason, #egh{id=Id, group=Group, conn=Conn} = State) ->
 %% Handling all non call/cast messages
 %%
 handle_info(timeout, #egh{id=Id, group=Group}=State) ->
-    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE, Id, Group},
-                    State#egh.debug, run, 6),
+    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE, Id, Group}, State#egh.debug, run, 6),
     {noreply, State};
 
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
             #egh{id=Id, group=Group} = State) ->
-    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, _Req},
-                    State#egh.debug, msg, 3),
+    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, _Req}, State#egh.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
     Sid = ejobman_rb:get_prop_id(Props),
-    erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive',
-        {Id, Sid, Content}),
-    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Sid,
-                               'group_queue', 4, 'undefined'),
+    erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive', {Id, Sid, Content}),
+    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Sid, 'group_queue', 4, 'undefined'),
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
     {noreply, New};
 
@@ -151,8 +142,12 @@ handle_info(#'basic.consume_ok'{consumer_tag = _Tag}, State) ->
     %New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
     {noreply, State};
 
+handle_info({'EXIT', Process, Reason}, _State) ->
+    mpln_p_debug:er({?MODULE, ?LINE, 'Trap exit', Process, Reason}),
+    {'EXIT', Reason};
+
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#egh.debug, run, 2),
+    mpln_p_debug:er({?MODULE, 'other', ?LINE, _Req}, State#egh.debug, run, 2),
     {noreply, State}.
 
 %------------------------------------------------------------------------------
@@ -271,7 +266,8 @@ get_connection(C) ->
 -spec prepare_q(#egh{}) -> #egh{}.
 
 prepare_q(#egh{group=Gid} = C) ->
-    {ok, Conn} = ejobman_rb:start_channel(C#egh.conn, C#egh.vhost),
+    {ok, #conn{connection=Connection} = Conn} = ejobman_rb:start_channel(C#egh.conn, C#egh.vhost),
+    erlang:link(Connection),
     ejobman_rb:channel_qos(Conn, 0, 1),
     Exchange = Queue = Key = compose_group_name(Gid),
     ejobman_rb:create_exchange(Conn, Exchange, <<"direct">>),

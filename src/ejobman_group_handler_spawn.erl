@@ -80,8 +80,7 @@ prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups,
     Def_group = #jgroup{id=?GID_DEFAULT, max_children=Max},
     List = [Def_group | Groups],
     Res = lists:map(fun(X) -> start_group_handler(Gh, X) end, List),
-    mpln_p_debug:pr({?MODULE, 'prepare_group_handlers', ?LINE, Res},
-                    St#ejm.debug, run, 3),
+    mpln_p_debug:pr({?MODULE, 'prepare_group_handlers', ?LINE, Res}, St#ejm.debug, run, 3),
     St#ejm{group_handler_run=Res}.
 
 %%%----------------------------------------------------------------------------
@@ -100,8 +99,8 @@ start_group_handler(Gh_params, #jgroup{id=Gid, max_children=Max}) ->
                 ],
     Ch_params = [{group_handler, Gh_params} | Short_params],
     StartFunc = {ejobman_group_handler, start_link, [Ch_params]},
-    Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_group_handler]},
-    Res = supervisor:start_child(ejobman_group_supervisor, Child),
-    {Short_params, Res}.
+    ChildSpec = {Id, StartFunc, permanent, 1000, worker, [ejobman_group_handler]},
+    {ok, Child} = supervisor:start_child(ejobman_group_supervisor, ChildSpec),
+    {Short_params, Child}.
 
 %%-----------------------------------------------------------------------------

@@ -54,19 +54,16 @@
 %%
 store_consumer_tag(#ejr{conn=#conn{consumer_tag=undefined} = Conn} = State,
                    Tag) ->
-    mpln_p_debug:pr({?MODULE, 'consumer tag', ?LINE, Tag},
-                    State#ejr.debug, run, 3),
+    mpln_p_debug:pr({?MODULE, 'consumer tag', ?LINE, Tag}, State#ejr.debug, run, 3),
     New = Conn#conn{consumer_tag=Tag},
     State#ejr{conn=New};
 
 store_consumer_tag(#ejr{conn=#conn{consumer_tag=Tag}} = State, Tag) ->
-    mpln_p_debug:pr({?MODULE, 'confirmation of consumer tag', ?LINE},
-                    State#ejr.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'confirmation of consumer tag', ?LINE}, State#ejr.debug, run, 2),
     State;
 
 store_consumer_tag(State, _Tag) ->
-    mpln_p_debug:pr({?MODULE, 'unknown consumer tag', ?LINE},
-                    State#ejr.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'unknown consumer tag', ?LINE}, State#ejr.debug, run, 2),
     State.
 
 %%-----------------------------------------------------------------------------
@@ -81,14 +78,11 @@ push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
         undefined ->
             % receiver got a message, but group handlers have not reported
             % yet
-            mpln_p_debug:pr({?MODULE, 'push_message undefined', ?LINE,
-                             Ref, Gid, Payload}, St#ejr.debug, msg, 1),
+            mpln_p_debug:er({?MODULE, 'push_message undefined', ?LINE, Ref, Gid, Payload}),
             ok;
         {Ex, Rkey} ->
             Bref = mpln_misc_web:make_term_binary(Ref),
-            mpln_p_debug:pr({?MODULE, 'push_message', ?LINE,
-                             Conn#conn.channel, Gid, Ex, Rkey, Payload, Bref},
-                            St#ejr.debug, msg, 4),
+            mpln_p_debug:pr({?MODULE, 'push_message', ?LINE, Conn#conn.channel, Gid, Ex, Rkey, Payload, Bref}, St#ejr.debug, msg, 4),
             ejobman_rb:send_dur_message(Conn#conn.channel,
                                         Ex, Rkey, Payload, Bref)
     end.
@@ -120,12 +114,10 @@ find_exchange(#ejr{temp_rt_key_for_group=Key} = St, Key, Bin) ->
     % from the group field of payload
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
-            mpln_p_debug:pr({?MODULE, 'find_exchange error', ?LINE, Reason},
-                            St#ejr.debug, run, 2),
+            mpln_p_debug:er({?MODULE, 'find_exchange error', ?LINE, Reason}),
             find_exchange2(St, Key, false);
         Data ->
-            mpln_p_debug:pr({?MODULE, 'find_exchange json dat', ?LINE, Data},
-                            St#ejr.debug, json, 3),
+            mpln_p_debug:pr({?MODULE, 'find_exchange json dat', ?LINE, Data}, St#ejr.debug, json, 3),
             Type = ejobman_data:get_type(Data),
             proceed_with_type(St, Key, Type, Data)
     end;
@@ -134,8 +126,7 @@ find_exchange(St, Key, _) ->
     find_exchange2(St, Key, false).
 
 find_exchange2(#ejr{groups=Groups} = St, Key, Last) ->
-    mpln_p_debug:pr({?MODULE, 'find_exchange2', ?LINE, Key, Last},
-                    St#ejr.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'find_exchange2', ?LINE, Key, Last}, St#ejr.debug, run, 4),
     case lists:keyfind(Key, 1, Groups) of
         false when Last == true ->
             undefined;
@@ -152,8 +143,7 @@ find_exchange2(#ejr{groups=Groups} = St, Key, Last) ->
 proceed_with_type(St, _Key, <<"rest">>, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Group = ejobman_data:get_group(Info),
-    mpln_p_debug:pr({?MODULE, 'proceed_with_type rest', ?LINE, Group},
-                    St#ejr.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'proceed_with_type rest', ?LINE, Group}, St#ejr.debug, run, 4),
     find_exchange2(St, Group, false);
     
 proceed_with_type(St, Key, _, _) ->

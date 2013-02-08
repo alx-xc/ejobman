@@ -58,10 +58,7 @@
 init(Params) ->
     process_flag(trap_exit, true), % to send jit logs
     C = prepare_all(Params),
-    mpln_p_debug:pr({?MODULE, 'init', ?LINE, C#child.id, self(), Params, C},
-        C#child.debug, config, 4),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, C#child.id, self()},
-        C#child.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'init', ?LINE, C#child.id, self(), Params, C}, C#child.debug, config, 4),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
 
 %%-----------------------------------------------------------------------------
@@ -92,17 +89,16 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(_, St) ->
+    mpln_p_debug:pr({?MODULE, handle_cast, ?LINE}, St#child.debug, run, 6),
     New = main_action(St),
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
 terminate(Reason, #child{id=Id} = State) ->
-    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate',
-                               2, 'terminate'),
+    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, 'terminate'),
     send_jit_log(Reason, State),
     ets:delete(State#child.jit_log_data),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE, Id, self()},
-        State#child.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE, Id, Reason}, State#child.debug, run, 2),
     ok.
 
 %%-----------------------------------------------------------------------------
@@ -112,13 +108,11 @@ terminate(Reason, #child{id=Id} = State) ->
 -spec handle_info(any(), #child{}) -> any().
 
 handle_info(timeout, State) ->
-    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id, self()},
-        State#child.debug, run, 6),
+    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id, self()}, State#child.debug, run, 6),
     New = main_action(State),
     {noreply, New, ?TC};
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, State#child.id, self()},
-        State#child.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, State#child.id, self()}, State#child.debug, run, 2),
     New = main_action(State),
     {noreply, New, ?TC}.
 
@@ -188,29 +182,18 @@ process_cmd(St) ->
 
 real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(),
-        St}, St#child.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(), St}, St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     Method_str = ejobman_clean:get_method_str(Method),
     {Url, Hdr} = make_url(St, Method_str),
     Req = make_req(Method, Url, Hdr, Params),
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, 'request url', Id, self(),
-        Url, Hdr}, St#child.debug, http, 4),
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, request, Id, self(),
-        Req}, St#child.debug, http, 5),
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, start, Id, self()},
-        St#child.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, 'request url', Id, self(), Url, Hdr}, St#child.debug, http, 4),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, request, Id, self(), Req}, St#child.debug, http, 5),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, start, Id, self()}, St#child.debug, run, 2),
     ejobman_group_handler:send_ack(Gh_pid, Id, Tag),
     T1 = now(),
-    erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid},
-        http_start, {Id, Req}),
-    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_start',
-                               4,
-                               [
-                                {'header',
-                                 mpln_misc_web:make_proplist_binary(Hdr)},
-                                {'url', mpln_misc_web:make_binary(Url)}
-                               ]),
+    erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid}, http_start, {Id, Req}),
+    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_start', 4, [{'header', mpln_misc_web:make_proplist_binary(Hdr)}, {'url', mpln_misc_web:make_binary(Url)}]),
     Res = httpc:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t},
          % http/1.0 is necessary, because for some rare cases a http/1.1
@@ -220,8 +203,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         [{body_format, binary}]),
     T2 = now(),
     New = process_result(St, Res, T1, T2),
-    mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
-        Res, New#child.debug),
+    mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id}, Res, New#child.debug),
     New.
 
 %%-----------------------------------------------------------------------------
@@ -332,7 +314,7 @@ rewrite_scheme(#child{schema_rewrite=Rew_conf} = St, Url) ->
         %{Scheme, Auth, Host, Port, Path, Query}
         {error, Reason} ->
             {error, Reason};
-        {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data ->
+        {ok, {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data} ->
             Res = find_matching_host(Rew_conf, Host),
             rewrite_scheme2(St, Url, Data, Res)
     end.
@@ -349,8 +331,7 @@ rewrite_scheme2(_St, _Url, Data, error) ->
 
 rewrite_scheme2(St, Url, {Scheme, Auth, Host, Port, Path, Query} = Data,
         {ok, Config}) ->
-    mpln_p_debug:pr({?MODULE, 'rewrite_scheme2 pars', ?LINE, self(),
-        Config, Scheme, Host, Port, Url}, St#child.debug, rewrite, 4),
+    mpln_p_debug:pr({?MODULE, 'rewrite_scheme2 pars', ?LINE, self(), Config, Scheme, Host, Port, Url}, St#child.debug, rewrite, 4),
     case proplists:get_value(https, Config) of
         true ->
             New_port = rewrite_port(Scheme, Port, 'https'),
@@ -471,8 +452,7 @@ match_one_host_regex(Host, Src_url) ->
 
 rewrite_host(#child{id=Id} = St, Config, Method, Url,
         {Scheme, Auth, Host, Port, Path, Query}) ->
-    mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, Id, self(),
-        Config, Host, Scheme, Port, Url}, St#child.debug, rewrite, 4),
+    mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, Id, self(), Config, Host, Scheme, Port, Url}, St#child.debug, rewrite, 4),
     case proplists:get_value(dst_host_part, Config) of
         undefined ->
             New_url = Url;
@@ -849,7 +829,7 @@ rewrite_scheme_test() ->
 
 do_one_test_scheme_rewrite(Pars, Url, Data3) ->
     Link = "http://" ++ Url ++ ":80/new/order/send-messages",
-    Data = http_uri:parse(Link),
+    {ok, Data} = http_uri:parse(Link),
     Data2 = rewrite_scheme2(#child{debug=[]}, Url, Data, {ok, Pars}),
     %?debugFmt("rewrite_scheme_test3~n~p~n~p~n~p~n~p, ~p~n",
     %    [Data, Data2, Data3, Data2 == Data3, Data2 =:= Data3]),
@@ -973,7 +953,7 @@ rewrite_addr_test() ->
 .
 
 one_test_rewrite_host(Conf, Url, Data3) ->
-    Data = http_uri:parse(Url),
+    {ok, Data} = http_uri:parse(Url),
     Data2 = rewrite_addr(Conf, post, Url, Data),
     %?debugFmt("one_test_rewrite_host~n~p~n~p~n~p~n",
     %    [Data, Data2, Data3]),

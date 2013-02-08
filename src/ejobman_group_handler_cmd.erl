@@ -53,19 +53,15 @@
 -spec store_rabbit_cmd(#egh{}, binary(), binary(), binary()) -> #egh{}.
 
 store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
-    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Ref, Bin},
-        State#egh.debug, msg, 4),
+    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Ref, Bin}, State#egh.debug, msg, 4),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error',
-                ?LINE, Ref, Reason}, State#egh.debug, run, 2),
-            erpher_et:trace_me(60, {?MODULE, Group},
-                'mochijson2:decode', 'decode', {Ref, Bin}),
+            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Ref, Reason}, State#egh.debug, run, 2),
+            erpher_et:trace_me(60, {?MODULE, Group}, 'mochijson2:decode', 'decode', {Ref, Bin}),
             ejobman_rb:send_ack(State#egh.conn, Tag),
             State;
         Data ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
-                ?LINE, Ref, Data}, State#egh.debug, json, 3),
+            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat', ?LINE, Ref, Data}, State#egh.debug, json, 3),
             Type = ejobman_data:get_type(Data),
             send_to_estat(State, Ref, Data),
             proceed_cmd_type(State, Type, Tag, Ref, Data)
@@ -84,10 +80,8 @@ process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid,
                 X == Id
         end,
     {Done, Cont} = lists:partition(F, Ch),
-    mpln_p_debug:pr({?MODULE, 'process_cmd_result done', ?LINE, Id, Done},
-                    St#egh.debug, handler_job, 3),
-    mpln_p_debug:pr({?MODULE, 'process_cmd_result continue', ?LINE, Id, Cont},
-                    St#egh.debug, handler_job, 5),
+    mpln_p_debug:pr({?MODULE, 'process_cmd_result done', ?LINE, Id, Done}, St#egh.debug, handler_job, 3),
+    mpln_p_debug:pr({?MODULE, 'process_cmd_result continue', ?LINE, Id, Cont}, St#egh.debug, handler_job, 5),
 
     Len = length(Cont),
     N = ejobman_rb:queue_len(Conn, Rqueue),
@@ -116,8 +110,7 @@ send_to_estat(St, Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Clean = ejobman_data:del_auth_info(Info),
     erpher_et:trace_me(40, ?MODULE, undefined, rest_info, {Ref, Clean}),
-    erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Ref,
-                               'message', 4, {'rest_info', Clean}).
+    erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Ref, 'message', 4, {'rest_info', Clean}).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -131,11 +124,9 @@ proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data) ->
     do_commands(State, Job);
 
 proceed_cmd_type(#egh{group=Group} = State, Other, Tag, Ref, _Data) ->
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Ref, Other},
-                    State#egh.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Ref, Other}, State#egh.debug, run, 2),
     ejobman_rb:send_ack(State#egh.conn, Tag),
-    erpher_et:trace_me(30, {?MODULE, Group}, 'proceed_cmd_type',
-        'not rest', {Ref, Other, _Data}),
+    erpher_et:trace_me(30, {?MODULE, Group}, 'proceed_cmd_type', 'not rest', {Ref, Other, _Data}),
     State.
 
 %%-----------------------------------------------------------------------------
@@ -226,8 +217,7 @@ do_commands(#egh{ch_queue=Q} = State, Job) ->
 do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid,
                         conn=Conn, queue=Rqueue} = St) ->
     Len = length(Ch),
-    mpln_p_debug:pr({?MODULE, 'do_command_proceed', ?LINE, Id, Gid, Len, Max},
-                    St#egh.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'do_command_proceed', ?LINE, Id, Gid, Len, Max}, St#egh.debug, run, 4),
     case queue:is_empty(Q) of
         false when Len < Max ->
             New = do_one_command(St, Len),
@@ -235,14 +225,11 @@ do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid,
         false ->
             Qlen = queue:len(Q),
             N = ejobman_rb:queue_len(Conn, Rqueue),
-            mpln_p_debug:pr({?MODULE, 'do_command_proceed too many children',
-                             ?LINE, Id, Gid, N, Qlen, Len, Max},
-                            St#egh.debug, run, 2),
+            % @todo error?
+            mpln_p_debug:ir({?MODULE, ?LINE, 'ejobman childs limit', {rb, N}, {chq, Qlen}, {ch, Len}, {lim, Max}}),
             St;
         _ ->
-            mpln_p_debug:pr({?MODULE, 'do_command_proceed empty internal queue',
-                             ?LINE, Id, Gid, Len, Max},
-                            St#egh.debug, run, 4),
+            mpln_p_debug:pr({?MODULE, 'do_command_proceed empty internal queue', ?LINE, Id, Gid, Len, Max}, St#egh.debug, run, 4),
             St
     end.
 
@@ -257,16 +244,8 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
     {{value, Job}, Q2} = queue:out(Q),
     N = ejobman_rb:queue_len(Conn, Rqueue),
     Queued = N + queue:len(Q),
-    erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue',
-        {Max, Len, Queued}),
-    erpher_jit_log:add_jit_msg(St#egh.jit_log_data,
-                               Job#job.id,
-                               'from_queue',
-                               4,
-                             [{max, Max},
-                              {running, Len},
-                              {queued, Queued},
-                              {group, Gid}]),
+    erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue', {Max, Len, Queued}),
+    erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Job#job.id, 'from_queue', 4, [{max, Max}, {running, Len}, {queued, Queued}, {group, Gid}]),
     New_ch = do_one_command_real(St, Ch, Job),
     Len2 = length(New_ch),
     ejobman_stat:upd_stat_t(Gid, Len2, Queued - (Len2 - Len)),
@@ -281,10 +260,7 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
 -spec do_one_command_real(#egh{}, [C], #job{}) -> [C].
 
 do_one_command_real(St, Ch, J) ->
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real job_id', ?LINE, J#job.id},
-        St#egh.debug, handler_child, 2),
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real', ?LINE, J},
-        St#egh.debug, handler_child, 3),
+    mpln_p_debug:pr({?MODULE, 'do_one_command_real', ?LINE, J}, St#egh.debug, handler_child, 3),
     % parameters for ejobman_child
     Child_params = [
         {gh_pid, self()},
@@ -304,22 +280,17 @@ do_one_command_real(St, Ch, J) ->
         {auth, J#job.auth},
         {debug, St#egh.debug}
         ],
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real child params', ?LINE,
-        Child_params}, St#egh.debug, handler_child, 4),
+    mpln_p_debug:pr({?MODULE, 'do_one_command_real child params', ?LINE, Child_params}, St#egh.debug, handler_child, 4),
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, Res},
-        St#egh.debug, handler_child, 5),
+    mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, Res}, St#egh.debug, handler_child, 5),
     case Res of
         {ok, Pid} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         {ok, Pid, _Info} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         _ ->
-            erpher_et:trace_me(40, {?MODULE, St#egh.group},
-                'ejobman_child_supervisor', 'start_child error',
-                {Res, Child_params}),
-            mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, 'error',
-                J#job.id, J#job.group, Res}, St#egh.debug, handler_child, 1),
+            erpher_et:trace_me(40, {?MODULE, St#egh.group}, 'ejobman_child_supervisor', 'start_child error', {Res, Child_params}),
+            mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, 'error', J#job.id, J#job.group, Res}, St#egh.debug, handler_child, 1),
             Ch
     end.
 

@@ -65,14 +65,11 @@
 log_job(Debug, Job) ->
     Level = proplists:get_value(job, Debug, 0),
     if  Level >= 5  ->
-            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job},
-                            [], job, 0);
+            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job});
         Level >= 3  ->
-            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE,
-                        Job#job{auth=undefined}}, [], job, 0);
+            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job#job{auth=undefined}});
         Level >= 2  ->
-            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job#job.id},
-                            [], job, 0);
+            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job#job.id});
         true ->
             ok
     end.

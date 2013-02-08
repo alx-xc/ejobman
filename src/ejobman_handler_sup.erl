@@ -1,7 +1,7 @@
 %%% 
-%%% ejobman_sup: main supervisor
-%%%
-%%% Copyright (c) 2011 Megaplan Ltd. (Russia)
+%%% ejobman_handler_sup: supervisor for handler and group handlers supervisor
+%%% 
+%%% Copyright (c) 2013 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"),
@@ -21,13 +21,13 @@
 %%% TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
-%%% @author arkdro <arkdro@gmail.com>
-%%% @since 2011-07-15 10:00
+%%% @author alx <alx-xc@yandex.com>
+%%% @since 2013-02-04 16:14
 %%% @license MIT
-%%% @doc main supervisor that spawns receiver, handler and child supervisor
+%%% @doc a supervisor that spawns handler and group_handlers supervisor
 %%% 
 
--module(ejobman_sup).
+-module(ejobman_handler_sup).
 -behaviour(supervisor).
 
 %%%----------------------------------------------------------------------------
@@ -40,39 +40,30 @@
 %%% Defines
 %%%----------------------------------------------------------------------------
 
--define(RESTARTS, 5).
--define(SECONDS, 2).
+-define(RESTARTS, 4).
+-define(SECONDS, 10).
 
 %%%----------------------------------------------------------------------------
 %%% supervisor callbacks
 %%%----------------------------------------------------------------------------
 init(_Args) ->
-    Stat = {
-        ejobman_stat, {ejobman_stat, start_link, []},
-        permanent, 10000, worker, [ejobman_stat]
-        },
-    Receiver = {
-        ejobman_receiver, {ejobman_receiver, start_link, []},
-        permanent, 1000, worker, [ejobman_receiver]
-        },
-    Sup = {
-        ejobman_child_sup, {ejobman_child_sup, start_link, []},
-        permanent, infinity, supervisor, [ejobman_child_sup]
-        },
-    HandlerSup = {
-        ejobman_handler_sup, {ejobman_handler_sup, start_link, []},
-        permanent, infinity, supervisor, [ejobman_handler_sup]
-        },
-    {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [Stat, Sup, Receiver, HandlerSup]}}.
+    Gr_sup = {
+        ejobman_group_sup, {ejobman_group_sup, start_link, []},
+        permanent, 1000, supervisor, [ejobman_group_sup]
+    },
+    Handler = {
+        ejobman_handler, {ejobman_handler, start_link, []},
+        permanent, 1000, worker, [ejobman_handler]
+    },
+    {ok, {{one_for_all, ?RESTARTS, ?SECONDS},
+        [Gr_sup, Handler]}}.
 
 %%%----------------------------------------------------------------------------
-%%% API
+%%% api
 %%%----------------------------------------------------------------------------
--spec start_link() -> any().
-%%
-%% @doc calls supervisor:start_link to create ejobman_supervisor
-%%
 start_link() ->
-    supervisor:start_link({local, ejobman_supervisor}, ejobman_sup, []).
+    supervisor:start_link({local, ejobman_handler_supervisor},
+        ejobman_handler_sup,
+        []).
+
 %%-----------------------------------------------------------------------------

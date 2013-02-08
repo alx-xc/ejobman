@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "2.3.6"},
+    {vsn, "2.3.7"},
     {modules, [
         ejobman_app,
         ejobman_child,
@@ -34,6 +34,6 @@
     ]},
     {mod, {ejobman_app,[]}},
     % eworkman for local config
-    {applications, [kernel, stdlib, inets, ssl, rabbit, eworkman, erpher_rt_stat]}
+    {applications, [kernel, stdlib, inets, ssl, eworkman, erpher_rt_stat]} %rabbit
 ]}.
 
