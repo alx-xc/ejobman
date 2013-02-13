@@ -95,7 +95,7 @@ handle_cast(stop, St) ->
 
 handle_cast({cmd_result, _Res, T1, T2, Id}, St) ->
     Dur = timer:now_diff(T2, T1),
-    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur}, St#egh.debug, job, 2),
+    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur}, St#egh.debug, job, 4),
     St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id),
     New = ejobman_group_handler_cmd:do_waiting_jobs(St_r),
     {noreply, New};

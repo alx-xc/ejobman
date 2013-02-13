@@ -94,6 +94,12 @@ handle_cast(_, St) ->
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
+terminate(normal=Reason, #child{id=Id} = State) ->
+    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, 'terminate'),
+    send_jit_log(Reason, State),
+    ets:delete(State#child.jit_log_data),
+    ok;
+
 terminate(Reason, #child{id=Id} = State) ->
     erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, 'terminate'),
     send_jit_log(Reason, State),
@@ -188,8 +194,6 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
     {Url, Hdr} = make_url(St, Method_str),
     Req = make_req(Method, Url, Hdr, Params),
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, 'request url', Id, self(), Url, Hdr}, St#child.debug, http, 4),
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, request, Id, self(), Req}, St#child.debug, http, 5),
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, start, Id, self()}, St#child.debug, run, 2),
     ejobman_group_handler:send_ack(Gh_pid, Id, Tag),
     T1 = now(),
     erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid}, http_start, {Id, Req}),
