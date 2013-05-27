@@ -53,17 +53,18 @@
 -spec store_rabbit_cmd(#egh{}, binary(), binary(), binary()) -> #egh{}.
 
 store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
-    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Ref, Bin}, State#egh.debug, msg, 4),
+    %erlang:display({?MODULE, ?LINE, 'store_rabbit_cmd'}),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Ref, Reason}, State#egh.debug, run, 2),
+            mpln_p_debug:er({?MODULE, ?LINE, 'store_rabbit_cmd error', Reason, Ref, Bin}),
             erpher_et:trace_me(60, {?MODULE, Group}, 'mochijson2:decode', 'decode', {Ref, Bin}),
             ejobman_rb:send_ack(State#egh.conn, Tag),
             State;
         Data ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat', ?LINE, Ref, Data}, State#egh.debug, json, 3),
             Type = ejobman_data:get_type(Data),
-            send_to_estat(State, Ref, Data),
+            %erlang:display({?MODULE, ?LINE, 'send_to_estat'}),
+            %send_to_estat(State, Ref, Data),
             proceed_cmd_type(State, Type, Tag, Ref, Data)
     end.
 
@@ -74,19 +75,17 @@ store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
 %%
 -spec process_cmd_result(#egh{}, binary() | reference()) -> #egh{}.
 
-process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid,
-                   conn=Conn, queue=Rqueue} = St, Id) ->
+process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueue} = St, Id) ->
     F = fun(#chi{id=X}) ->
                 X == Id
         end,
     {Done, Cont} = lists:partition(F, Ch),
     mpln_p_debug:pr({?MODULE, 'process_cmd_result done', ?LINE, Id, Done}, St#egh.debug, handler_job, 3),
-    mpln_p_debug:pr({?MODULE, 'process_cmd_result continue', ?LINE, Id, Cont}, St#egh.debug, handler_job, 5),
 
     Len = length(Cont),
     N = ejobman_rb:queue_len(Conn, Rqueue),
     Queued = N + queue:len(Q),
-    ejobman_stat:upd_stat_t(Gid, Len, Queued),
+    ejobman_stat:upd_stat_t(now(), Gid, Len, Queued, 1),
     
     St#egh{ch_run=Cont}.
 
@@ -109,7 +108,6 @@ do_waiting_jobs(St) ->
 send_to_estat(St, Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Clean = ejobman_data:del_auth_info(Info),
-    erpher_et:trace_me(40, ?MODULE, undefined, rest_info, {Ref, Clean}),
     erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Ref, 'message', 4, {'rest_info', Clean}).
 
 %%-----------------------------------------------------------------------------
@@ -245,7 +243,7 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
     N = ejobman_rb:queue_len(Conn, Rqueue),
     Queued = N + queue:len(Q),
     erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue', {Max, Len, Queued}),
-    erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Job#job.id, 'from_queue', 4, [{max, Max}, {running, Len}, {queued, Queued}, {group, Gid}]),
+    %erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Job#job.id, 'from_queue', 4, [{max, Max}, {running, Len}, {queued, Queued}, {group, Gid}]),
     New_ch = do_one_command_real(St, Ch, Job),
     Len2 = length(New_ch),
     ejobman_stat:upd_stat_t(Gid, Len2, Queued - (Len2 - Len)),

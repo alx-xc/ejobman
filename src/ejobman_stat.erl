@@ -38,11 +38,8 @@
 -export([start/0, start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
--export([stat_t/0, stat_t/1, add_stat_t/2, upd_stat_t/3, upd_stat_t/4]).
--export([make_stat_t_info_html/0, make_one_stat_html/1]).
--export([
-         reload_config_signal/0
-        ]).
+-export([stat_t/0, stat_t/1, add_stat_t/2, upd_stat_t/3, upd_stat_t/4, upd_stat_t/5]).
+-export([reload_config_signal/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -108,15 +105,13 @@ handle_cast(stop, St) ->
     {stop, normal, St};
 
 handle_cast({add_job, Time, Tag}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast add_job', ?LINE, Time, Tag},
-        St#est.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'cast add_job', ?LINE, Time, Tag}, St#est.debug, run, 4),
     add_job_stat(Time, Tag),
     {noreply, St};
 
-handle_cast({upd_job, Time, Tag, Work, Queued}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast upd_job', ?LINE, Time, Tag},
-        St#est.debug, run, 4),
-    upd_job_stat(Time, Tag, Work, Queued),
+handle_cast({upd_job, Time, Tag, Work, Queued, Worked}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast upd_job', ?LINE, Time, Tag}, St#est.debug, run, 4),
+    upd_job_stat(Time, Tag, Work, Queued, Worked),
     {noreply, St};
 
 handle_cast(reload_config_signal, St) ->
@@ -235,7 +230,12 @@ upd_stat_t(Tag, Work, Queued) ->
 -spec upd_stat_t(tuple(), any(), non_neg_integer(), non_neg_integer()) -> ok.
 
 upd_stat_t(Time, Tag, Work, Queued) ->
-    gen_server:cast(?MODULE, {upd_job, Time, Tag, Work, Queued}).
+    upd_stat_t(Time, Tag, Work, Queued, 0).
+
+-spec upd_stat_t(tuple(), any(), non_neg_integer(), non_neg_integer(), non_neg_integer()) -> ok.
+
+upd_stat_t(Time, Tag, Work, Queued, Worked) ->
+    gen_server:cast(?MODULE, {upd_job, Time, Tag, Work, Queued, Worked}).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -311,24 +311,20 @@ periodic_check(#est{timer=Ref, clean_interval=T} = St) ->
 %%
 %% @doc updates items in job statistic (minute and hourly)
 %%
--spec upd_job_stat(tuple(), any(), non_neg_integer(), non_neg_integer()) ->
+-spec upd_job_stat(tuple(), any(), non_neg_integer(), non_neg_integer(), non_neg_integer()) ->
                           true.
 
-upd_job_stat(Time, Tag, Work, Queued) ->
-    upd_minute_job_stat(Time, Tag, Work, Queued),
-    upd_hourly_job_stat(Time, Tag, Work, Queued).
+upd_job_stat(Time, Tag, Work, Queued, Worked) ->
+    upd_minute_job_stat(Time, Tag, Work, Queued, Worked),
+    upd_hourly_job_stat(Time, Tag, Work, Queued, Worked).
 
-upd_minute_job_stat(Time, Tag, Work, Queued) ->
-    estat_misc:set_max_timed_stat(?STAT_TAB_M, 'minute', Time, {Tag, 'work'},
-                                  Work),
-    estat_misc:set_max_timed_stat(?STAT_TAB_M, 'minute', Time, {Tag, 'queued'},
-                                  Queued).
+upd_minute_job_stat(Time, Tag, Work, Queued, Worked) ->
+    estat_misc:set_max_timed_stat(?STAT_TAB_M, 'minute', Time, {Tag, 'work'}, Work, Worked),
+    estat_misc:set_max_timed_stat(?STAT_TAB_M, 'minute', Time, {Tag, 'queued'}, Queued, 0).
 
-upd_hourly_job_stat(Time, Tag, Work, Queued) ->
-    estat_misc:set_max_timed_stat(?STAT_TAB_H, 'hour', Time, {Tag, 'work'},
-                                  Work),
-    estat_misc:set_max_timed_stat(?STAT_TAB_H, 'hour', Time, {Tag, 'queued'},
-                                  Queued).
+upd_hourly_job_stat(Time, Tag, Work, Queued, Worked) ->
+    estat_misc:set_max_timed_stat(?STAT_TAB_H, 'hour', Time, {Tag, 'work'}, Work, Worked),
+    estat_misc:set_max_timed_stat(?STAT_TAB_H, 'hour', Time, {Tag, 'queued'}, Queued, 0).
 
 
 %%-----------------------------------------------------------------------------
@@ -460,58 +456,3 @@ process_reload_config(St) ->
     prepare_storage(C).
 
 %%-----------------------------------------------------------------------------
-
-make_stat_t_info_html() ->
-    List = stat_t(),
-    L1 = proplists:get_value("minute data", List),
-    L2 = proplists:get_value("hour data", List),
-    L1j = estat_misc:make_joined_list(L1),
-    L2j = estat_misc:make_joined_list(L2),
-    make_one_stat_html([{"minute data", L1j}, {"hour data", L2j}]).
-
-make_one_stat_html(List) ->
-    F = fun({{Dt, Group}, {W_cur, W_max, Q_cur, Q_max}}) ->
-        [
-            "<tr>",
-            "<td>", mpln_misc_time:make_str2_int(Dt), "</td>",
-            "<td>", mpln_misc_web:make_string(Group), "</td>",
-            "<td>", mpln_misc_web:make_string(W_cur), "</td>",
-            "<td>", mpln_misc_web:make_string(W_max), "</td>",
-            "<td>", mpln_misc_web:make_string(Q_cur), "</td>",
-            "<td>", mpln_misc_web:make_string(Q_max), "</td>",
-            "</tr>\n"
-        ];
-        ({K, V}) ->
-            [
-                "<tr>",
-                "<td colspan=2>",
-                mpln_misc_web:make_term_string(K),
-                "</td>",
-                "<td colspan=4>",
-                mpln_misc_web:make_term_string(V),
-                "</td>",
-                "</tr>\n"
-            ]
-    end,
-    F_big = fun({Tag, L}) ->
-        [
-            "<html><body>\n<p>\n",
-            "<table ", ?TABC, ">",
-            "<tr><td colspan=6 bgcolor=\"#CCCCDA\">",
-            mpln_misc_web:make_term_string(Tag),
-            "</td></tr>\n",
-            "<tr>",
-            "<td>time</td>",
-            "<td>group</td>",
-            "<td>work current</td>",
-            "<td>work max</td>\n",
-            "<td>queue current</td>",
-            "<td>queue max</td>",
-            "</tr>\n",
-            lists:map(F, L),
-            "<table>\n",
-            "<p>\n",
-            "</body></html>\n"
-        ]
-    end,
-    lists:flatten(lists:map(F_big, List)).

@@ -55,8 +55,7 @@
 init([List]) ->
     New = prepare_all(List),
     process_flag(trap_exit, true), % to perform amqp channel teardown
-    erpher_jit_log:add_jit_msg(New#egh.jit_log_data, New#egh.id, New#egh.group, 2, 'init'),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group}, New#egh.debug, run, 1),
+    mpln_p_debug:ir({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group}),
     {ok, New}.
 
 %------------------------------------------------------------------------------
@@ -79,7 +78,7 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
     {reply, St#egh.debug, St#egh{debug=New}};
 
 handle_call(_N, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'call other', ?LINE, _N}, St#egh.debug, run, 2),
+    mpln_p_debug:er({?MODULE, 'call other', ?LINE, _N}),
     {reply, {error, unknown_request}, St}.
 
 %------------------------------------------------------------------------------
@@ -112,10 +111,7 @@ handle_cast(_Other, St) ->
 %------------------------------------------------------------------------------
 terminate(Reason, #egh{id=Id, group=Group, conn=Conn} = State) ->
     ejobman_rb:teardown_channel(Conn),
-    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Id, Group, 2, 'terminate'),
-    send_jit_log(Reason, State),
-    ets:delete(State#egh.jit_log_data),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#egh.debug, run, 1),
+    mpln_p_debug:er({?MODULE, ?LINE, terminate}),
     ok.
 
 %------------------------------------------------------------------------------
@@ -124,7 +120,7 @@ terminate(Reason, #egh{id=Id, group=Group, conn=Conn} = State) ->
 %% Handling all non call/cast messages
 %%
 handle_info(timeout, #egh{id=Id, group=Group}=State) ->
-    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE, Id, Group}, State#egh.debug, run, 6),
+    mpln_p_debug:pr({?MODULE, 'handle_info timeout', ?LINE, Id, Group}, State#egh.debug, run, 6),
     {noreply, State};
 
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
@@ -134,7 +130,6 @@ handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
     Props = Content#amqp_msg.props,
     Sid = ejobman_rb:get_prop_id(Props),
     erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive', {Id, Sid, Content}),
-    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Sid, 'group_queue', 4, 'undefined'),
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
     {noreply, New};
 
@@ -147,7 +142,7 @@ handle_info({'EXIT', Process, Reason}, _State) ->
     {'EXIT', Reason};
 
 handle_info(_Req, State) ->
-    mpln_p_debug:er({?MODULE, 'other', ?LINE, _Req}, State#egh.debug, run, 2),
+    mpln_p_debug:er({?MODULE, 'handle_info unknown', ?LINE, _Req}),
     {noreply, State}.
 
 %------------------------------------------------------------------------------
@@ -228,16 +223,7 @@ prepare_all(List) ->
     C = ejobman_conf:get_config_group_handler(List),
     C_conn = get_connection(C),
     C_st = prepare_storage(C_conn),
-    Cj = prepare_jit_log(C_st),
-    prepare_q(Cj).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc prepare ets for jit log data
-%%
-prepare_jit_log(St) ->
-    Tid = erpher_jit_log:prepare_jit_tab(?MODULE),
-    St#egh{jit_log_data=Tid}.
+    prepare_q(C_st).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -284,16 +270,5 @@ prepare_q(#egh{group=Gid} = C) ->
 compose_group_name(Gid) ->
     Bin = mpln_misc_web:make_binary(Gid),
     << <<"ejobman_group_">>/binary, Bin/binary>>.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc send jit log data to stat server if there is an error signs
-%% or configured jit log level is high enough
-%%
-send_jit_log(Reason, St) ->
-    erpher_jit_log:send_jit_log(Reason,
-                                 St#egh.jit_log_level,
-                                 St#egh.jit_log_data,
-                                 St#egh.id).
 
 %%-----------------------------------------------------------------------------

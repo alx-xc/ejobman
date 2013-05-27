@@ -195,9 +195,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
     Req = make_req(Method, Url, Hdr, Params),
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, 'request url', Id, self(), Url, Hdr}, St#child.debug, http, 4),
     ejobman_group_handler:send_ack(Gh_pid, Id, Tag),
-    T1 = now(),
     erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid}, http_start, {Id, Req}),
-    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_start', 4, [{'header', mpln_misc_web:make_proplist_binary(Hdr)}, {'url', mpln_misc_web:make_binary(Url)}]),
+    T1 = now(),
     Res = httpc:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t},
          % http/1.0 is necessary, because for some rare cases a http/1.1
@@ -206,8 +205,9 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         {version, "HTTP/1.0"}],
         [{body_format, binary}]),
     T2 = now(),
+    % main ejobman log info
+    mpln_p_debug:log_http_res({?MODULE, ?LINE, real_cmd, Url, mpln_misc_time:get_time_str(T1), mpln_misc_time:get_time_str(T2), Id}, Res, St#child.debug),
     New = process_result(St, Res, T1, T2),
-    mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id}, Res, New#child.debug),
     New.
 
 %%-----------------------------------------------------------------------------
@@ -216,7 +216,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
 %%
 process_result(#child{id=Id, gh_pid=Pid} = St, Res, T1, T2) ->
     ejobman_group_handler:cmd_result(Pid, Res, T1, T2, Id),
-    send_stat(St, Res).
+    %send_stat(St, Res)
+    St.
 
 %%-----------------------------------------------------------------------------
 %%

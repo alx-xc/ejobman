@@ -142,8 +142,6 @@ handle_info(timeout, State) ->
     {noreply, New};
 
 handle_info(periodic_check, State) ->
-    mpln_p_debug:pr({?MODULE, 'info_periodic_check', ?LINE},
-                    State#ejm.debug, run, 6),
     New = periodic_check(State),
     {noreply, New};
 
@@ -222,6 +220,7 @@ reload_config_signal() ->
 -spec periodic_check(#ejm{}) -> #ejm{}.
 
 periodic_check(#ejm{timer=Ref} = St) ->
+    %erlang:display({?MODULE, ?LINE, periodic_check}),
     mpln_p_debug:pr({?MODULE, 'periodic_check', ?LINE}, St#ejm.debug, run, 5),
     mpln_misc_run:cancel_timer(Ref),
     St_c = check_children(St),

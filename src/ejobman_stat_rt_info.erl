@@ -62,8 +62,7 @@ write_rt_info(#est{rt_info_file=File} = St, Dat) ->
         ok ->
             rename_files(St, File, Temp);
         Other ->
-            mpln_p_debug:pr({?MODULE, 'write_rt_info error', ?LINE, Other},
-                St#est.debug, stat, 0)
+            mpln_p_debug:er({?MODULE, ?LINE, 'write_rt_info error', Other})
     end.
 
 %%%----------------------------------------------------------------------------
@@ -77,8 +76,7 @@ rename_files(St, File, Temp) ->
         ok ->
             ok;
         Other ->
-            mpln_p_debug:pr({?MODULE, 'rename_files error', ?LINE, Other},
-                St#est.debug, stat, 0)
+            mpln_p_debug:er({?MODULE, ?LINE, 'rename_files error', Other})
     end.
 
 %%-----------------------------------------------------------------------------
