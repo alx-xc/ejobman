@@ -40,6 +40,7 @@
 -export([terminate/2, code_change/3]).
 -export([send_ack/3]).
 -export([cmd_result/5]).
+-export([compose_group_name/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes

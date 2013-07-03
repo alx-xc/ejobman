@@ -129,7 +129,8 @@ find_exchange2(#ejr{groups=Groups} = St, Key, Last) ->
     mpln_p_debug:pr({?MODULE, 'find_exchange2', ?LINE, Key, Last}, St#ejr.debug, run, 4),
     case lists:keyfind(Key, 1, Groups) of
         false when Last == true ->
-            undefined;
+            Ex = ejobman_group_handler:compose_group_name(?GID_DEFAULT),
+            {Ex, Ex};
         false ->
             find_exchange2(St, ?GID_DEFAULT, true);
         {_Key, Exchange, Bind_key} ->

@@ -140,14 +140,12 @@ handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejr.debug, run, 6),
     {noreply, State};
 
-handle_info({#'basic.deliver'{delivery_tag=Tag, routing_key=Gid}, Content} =
-            _Req, #ejr{conn=Conn} = State) ->
+handle_info({#'basic.deliver'{delivery_tag=Tag, routing_key=Gid}, Content} = _Req, #ejr{conn=Conn} = State) ->
     Ref = make_ref(),
-    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Ref, _Req},
-                    State#ejr.debug, msg, 3),
+    mpln_p_debug:pr({?MODULE, ?LINE, 'basic.deliver', Ref, _Req}, State#ejr.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
-    erpher_et:trace_me(50, ?MODULE, Gid, forward, {Ref, Content}),
+    erpher_et:trace_me(50, ?MODULE, Gid, forward, {?MODULE, ?LINE, Ref, Content}),
     erpher_rt_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
     ejobman_receiver_cmd:push_message(State, Gid, Ref, Payload),
     ejobman_rb:send_ack(Conn, Tag),

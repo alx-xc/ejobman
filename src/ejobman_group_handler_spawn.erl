@@ -75,8 +75,7 @@ terminate_children(#ejm{group_handler_run=List}) ->
 %%
 -spec prepare_group_handlers(#ejm{}) -> #ejm{}.
 
-prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups,
-                            max_children=Max} = St) ->
+prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups, max_children=Max} = St) ->
     Def_group = #jgroup{id=?GID_DEFAULT, max_children=Max},
     List = [Def_group | Groups],
     Res = lists:map(fun(X) -> start_group_handler(Gh, X) end, List),
