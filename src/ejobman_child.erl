@@ -95,16 +95,16 @@ handle_cast(_, St) ->
 
 %%-----------------------------------------------------------------------------
 terminate(normal=Reason, #child{id=Id} = State) ->
-    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, 'terminate'),
+    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, {'terminate', 'normal'}),
     send_jit_log(Reason, State),
     ets:delete(State#child.jit_log_data),
     ok;
 
 terminate(Reason, #child{id=Id} = State) ->
-    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, 'terminate'),
+    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate', 2, {'terminate', 'unnormal'}),
     send_jit_log(Reason, State),
     ets:delete(State#child.jit_log_data),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE, Id, Reason}, State#child.debug, run, 2),
+    mpln_p_debug:er({?MODULE, ?LINE, terminate, Reason}),
     ok.
 
 %%-----------------------------------------------------------------------------
@@ -186,15 +186,13 @@ process_cmd(St) ->
 %%
 -spec real_cmd(#child{}) -> #child{}.
 
-real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
-        http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
+real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid, http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(), St}, St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     Method_str = ejobman_clean:get_method_str(Method),
     {Url, Hdr} = make_url(St, Method_str),
-    Req = make_req(Method, Url, Hdr, Params),
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, 'request url', Id, self(), Url, Hdr}, St#child.debug, http, 4),
     ejobman_group_handler:send_ack(Gh_pid, Id, Tag),
+    Req = make_req(Method, Url, Hdr, Params),
     erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid}, http_start, {Id, Req}),
     T1 = now(),
     Res = httpc:request(Method, Req,
@@ -206,7 +204,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         [{body_format, binary}]),
     T2 = now(),
     % main ejobman log info
-    mpln_p_debug:log_http_res({?MODULE, ?LINE, real_cmd, Url, mpln_misc_time:get_time_str(T1), mpln_misc_time:get_time_str(T2), Id}, Res, St#child.debug),
+    mpln_p_debug:log_http_res({?MODULE, ?LINE, Url, mpln_misc_time:get_time_str(T1), timer:now_diff(T2, T1) / 1000000}, Res, St#child.debug, {params, make_body(Params)}),
     New = process_result(St, Res, T1, T2),
     New.
 
@@ -226,8 +224,7 @@ process_result(#child{id=Id, gh_pid=Pid} = St, Res, T1, T2) ->
 send_stat(#child{id=Id} = St, Res) ->
     {Status, Params} = make_send_stat_params(Res),
     erpher_et:trace_me(50, {?MODULE, Id}, undefined, http_stop, {Id, Res}),
-    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_stop',
-                               4, Params),
+    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_stop', 4, Params),
     St#child{jit_log_status=Status}.
 
 %%-----------------------------------------------------------------------------
@@ -294,14 +291,12 @@ rewrite(#child{ip=Ip} = St, Method, Url) ->
             {Url, H};
         Data_s when Ip == undefined ->
             {Scheme, Auth, Host, Port, Path, Query} = Data_s,
-            New_url = proceed_rewrite_host(St, Scheme, Auth, Host, Port,
-                Path, Query),
+            New_url = proceed_rewrite_host(St, Scheme, Auth, Host, Port, Path, Query),
             rewrite_addr(St, Method, New_url, Data_s);
         Data_s ->
             Ip_s = mpln_misc_web:make_string(Ip),
             {Scheme, Auth, Host, Port, Path, Query} = Data_s,
-            New_url = proceed_rewrite_host(St, Scheme, Auth, Ip_s, Port,
-                Path, Query),
+            New_url = proceed_rewrite_host(St, Scheme, Auth, Ip_s, Port, Path, Query),
             H = compose_headers(St, [], Method, Host, Path, Query),
             {New_url, H}
     end.
@@ -369,8 +364,7 @@ rewrite_port(_, Port, _) ->
 %%
 -spec rewrite_addr(#child{}, string(), string(), tuple()) -> {string(), list()}.
 
-rewrite_addr(#child{url_rewrite=Rew_conf} = St, Method, Url,
-        {_Scheme, _Auth, Host, _Port, Path, Query} = Data) ->
+rewrite_addr(#child{url_rewrite=Rew_conf} = St, Method, Url, {_Scheme, _Auth, Host, _Port, Path, Query} = Data) ->
     case find_matching_host(Rew_conf, Host) of
         {ok, Config} ->
             rewrite_host(St, Config, Method, Url, Data);
@@ -455,15 +449,12 @@ match_one_host_regex(Host, Src_url) ->
 -spec rewrite_host(#child{}, list(), string(), string(), tuple()) ->
     {string(), list()}.
 
-rewrite_host(#child{id=Id} = St, Config, Method, Url,
-        {Scheme, Auth, Host, Port, Path, Query}) ->
-    mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, Id, self(), Config, Host, Scheme, Port, Url}, St#child.debug, rewrite, 4),
+rewrite_host(#child{id=Id} = St, Config, Method, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
     case proplists:get_value(dst_host_part, Config) of
         undefined ->
             New_url = Url;
         New_host ->
-            New_url = proceed_rewrite_host(St, Scheme, Auth, New_host,
-                Port, Path, Query)
+            New_url = proceed_rewrite_host(St, Scheme, Auth, New_host, Port, Path, Query)
     end,
     H = compose_headers(St, Config, Method, Host, Path, Query),
     {New_url, H}.
@@ -558,9 +549,6 @@ proceed_rewrite_host(St, Scheme, Auth, Host, Port, Path, Query) ->
     Port_str = integer_to_list(Port),
     Str = [Scheme_str, Auth_str, Host, ":", Port_str, Path, Query],
     Res_str = lists:flatten(Str),
-    mpln_p_debug:pr({?MODULE, 'proceed_rewrite_host res', ?LINE, self(),
-        Scheme, Auth, Host, Port, Path, Query, Res_str},
-        St#child.debug, rewrite, 5),
     Res_str.
 
 %%-----------------------------------------------------------------------------

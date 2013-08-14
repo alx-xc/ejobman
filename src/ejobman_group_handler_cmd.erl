@@ -212,23 +212,28 @@ do_commands(#egh{ch_queue=Q} = State, Job) ->
 %%
 -spec do_commands_proceed(#egh{}) -> #egh{}.
 
-do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid,
-                        conn=Conn, queue=Rqueue} = St) ->
-    Len = length(Ch),
-    mpln_p_debug:pr({?MODULE, 'do_command_proceed', ?LINE, Id, Gid, Len, Max}, St#egh.debug, run, 4),
+do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid, conn=Conn, queue=Rqueue} = St) ->
+    %DeadChildsLen = length(lists:filter(fun(Child) -> case process_info(Child#chi.pid) of undefined -> true; _ -> false end end, Ch)),
+    %case DeadChildsLen of 0 -> ok;
+    %    _ -> mpln_p_debug:ir({?MODULE, ?LINE, 'dead childs', {'group', Gid, 'cnt', DeadChildsLen}})
+    %end,
+
+    ChildsFiltered = lists:filter(fun(Child) -> case process_info(Child#chi.pid) of undefined -> false; _ -> true end end, Ch),
+    St2 = St#egh{ch_run = ChildsFiltered},
+    Len = length(St2#egh.ch_run),
+    mpln_p_debug:pr({?MODULE, 'do_command_proceed', ?LINE, Id, Gid, Len, Max}, St2#egh.debug, run, 4),
     case queue:is_empty(Q) of
         false when Len < Max ->
-            New = do_one_command(St, Len),
+            New = do_one_command(St2, Len),
             do_commands_proceed(New);
         false ->
             Qlen = queue:len(Q),
             N = ejobman_rb:queue_len(Conn, Rqueue),
-            % @todo error?
-            mpln_p_debug:ir({?MODULE, ?LINE, 'ejobman childs limit', {rb, N}, {chq, Qlen}, {ch, Len}, {lim, Max}}),
-            St;
+            mpln_p_debug:ir({?MODULE, ?LINE, 'ejobman childs limit', {rb, N, chq, Qlen, ch, Len, lim, Max}}),
+            St2;
         _ ->
-            mpln_p_debug:pr({?MODULE, 'do_command_proceed empty internal queue', ?LINE, Id, Gid, Len, Max}, St#egh.debug, run, 4),
-            St
+            mpln_p_debug:pr({?MODULE, 'do_command_proceed empty internal queue', ?LINE, Id, Gid, Len, Max}, St2#egh.debug, run, 4),
+            St2
     end.
 
 %%-----------------------------------------------------------------------------
@@ -237,13 +242,11 @@ do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid,
 %%
 -spec do_one_command(#egh{}, non_neg_integer()) -> #egh{}.
 
-do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
-                   conn=Conn, queue=Rqueue} = St, Len) ->
+do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid, conn=Conn, queue=Rqueue} = St, Len) ->
     {{value, Job}, Q2} = queue:out(Q),
     N = ejobman_rb:queue_len(Conn, Rqueue),
     Queued = N + queue:len(Q),
     erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue', {Max, Len, Queued}),
-    %erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Job#job.id, 'from_queue', 4, [{max, Max}, {running, Len}, {queued, Queued}, {group, Gid}]),
     New_ch = do_one_command_real(St, Ch, Job),
     Len2 = length(New_ch),
     ejobman_stat:upd_stat_t(Gid, Len2, Queued - (Len2 - Len)),
@@ -258,7 +261,6 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
 -spec do_one_command_real(#egh{}, [C], #job{}) -> [C].
 
 do_one_command_real(St, Ch, J) ->
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real', ?LINE, J}, St#egh.debug, handler_child, 3),
     % parameters for ejobman_child
     Child_params = [
         {gh_pid, self()},
@@ -278,17 +280,14 @@ do_one_command_real(St, Ch, J) ->
         {auth, J#job.auth},
         {debug, St#egh.debug}
         ],
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real child params', ?LINE, Child_params}, St#egh.debug, handler_child, 4),
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
-    mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, Res}, St#egh.debug, handler_child, 5),
     case Res of
         {ok, Pid} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         {ok, Pid, _Info} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         _ ->
-            erpher_et:trace_me(40, {?MODULE, St#egh.group}, 'ejobman_child_supervisor', 'start_child error', {Res, Child_params}),
-            mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, 'error', J#job.id, J#job.group, Res}, St#egh.debug, handler_child, 1),
+            mpln_p_debug:er({?MODULE, ?LINE, 'do_one_command_real res', 'error', J#job.id, J#job.group, Res}),
             Ch
     end.
 

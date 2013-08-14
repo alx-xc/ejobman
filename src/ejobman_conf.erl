@@ -240,22 +240,16 @@ fill_config_stat(All_list) ->
         stat_limit_n = proplists:get_value(stat_limit_n, List, ?STAT_LIMIT_N),
         stat_limit_t = proplists:get_value(stat_limit_t, List, ?STAT_LIMIT_T),
         % time limit for working/queued counters
-        stat_limit_cnt_h = proplists:get_value(stat_limit_cnt_h, List,
-                                             ?STAT_LIMIT_CT_H),
-        stat_limit_cnt_m = proplists:get_value(stat_limit_cnt_m, List,
-                                             ?STAT_LIMIT_CT_M),
+        stat_limit_cnt_h = proplists:get_value(stat_limit_cnt_h, List, ?STAT_LIMIT_CT_H),
+        stat_limit_cnt_m = proplists:get_value(stat_limit_cnt_m, List, ?STAT_LIMIT_CT_M),
 
-        %log_procs_interval = proplists:get_value(log_procs_interval, List,
-        %                                         ?LOG_PROCS_INTERVAL),
-        %rt_info_file = proplists:get_value(rt_info_file, List),
-        %rotate_interval = proplists:get_value(rotate_interval, List, 'hour'),
+        rt_info_file = proplists:get_value(rt_info_file, List),
+        rotate_interval = proplists:get_value(rotate_interval, List, 'hour'),
         debug = proplists:get_value(debug, List, []),
-        %storage_base = proplists:get_value(storage_base, List, ?STAT_STORAGE),
-        %keep_time = proplists:get_value(keep_time, List, ?STAT_KEEP_TIME),
-        clean_interval = proplists:get_value(clean_interval, List,
-                                             ?STAT_CLEAN_INTERVAL)
-        %flush_number = proplists:get_value(flush_number, List,
-        %                                     ?STAT_FLUSH_NUMBER)
+        storage_base = proplists:get_value(storage_base, List, ?STAT_STORAGE),
+        keep_time = proplists:get_value(keep_time, List, ?STAT_KEEP_TIME),
+        clean_interval = proplists:get_value(clean_interval, List, ?STAT_CLEAN_INTERVAL),
+        flush_number = proplists:get_value(flush_number, List, ?STAT_FLUSH_NUMBER)
     }.
 
 %%-----------------------------------------------------------------------------
