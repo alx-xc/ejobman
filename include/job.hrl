@@ -15,7 +15,9 @@
     group,
     tag, % delivery tag for amqp
     path :: string(),
-    run_time
+    run_time,
+    payload,
+    timestamp
 }).
 
 -record(auth, {

@@ -186,8 +186,9 @@ process_cmd(St) ->
 %%
 -spec real_cmd(#child{}) -> #child{}.
 
-real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid, http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
-    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(), St}, St#child.debug, run, 4),
+real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid, http_connect_timeout=Conn_t, http_timeout=Http_t, delay=Delay} = St) ->
+    timer:sleep(Delay*1000),
+    mpln_p_debug:pr({?MODULE, ?LINE, real_cmd, params, Id, self(), St}, St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     Method_str = ejobman_clean:get_method_str(Method),
     {Url, Hdr} = make_url(St, Method_str),

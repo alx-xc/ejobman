@@ -33,7 +33,7 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([store_rabbit_cmd/4, process_cmd_result/2, do_waiting_jobs/1]).
+-export([store_rabbit_cmd/5, process_cmd_result/3, do_waiting_jobs/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -42,6 +42,7 @@
 -include("group_handler.hrl").
 -include("chi.hrl").
 -include("job.hrl").
+-include("rabbit_session.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% API
@@ -50,9 +51,9 @@
 %% @doc sends received command to a command handler. Returns updated state.
 %% @since 2012-01-11 14:16
 %%
--spec store_rabbit_cmd(#egh{}, binary(), binary(), binary()) -> #egh{}.
+-spec store_rabbit_cmd(#egh{}, binary(), binary(), binary(), integer()) -> #egh{}.
 
-store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
+store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin, Timestamp) ->
     %erlang:display({?MODULE, ?LINE, 'store_rabbit_cmd'}),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
@@ -61,11 +62,10 @@ store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
             ejobman_rb:send_ack(State#egh.conn, Tag),
             State;
         Data ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat', ?LINE, Ref, Data}, State#egh.debug, json, 3),
+            mpln_p_debug:pr({?MODULE, ?LINE, 'store_rabbit_cmd json dat', Ref, Data}, State#egh.debug, json, 3),
             Type = ejobman_data:get_type(Data),
-            %erlang:display({?MODULE, ?LINE, 'send_to_estat'}),
             %send_to_estat(State, Ref, Data),
-            proceed_cmd_type(State, Type, Tag, Ref, Data)
+            proceed_cmd_type(State, Type, Tag, Ref, Data, Bin, Timestamp)
     end.
 
 %%-----------------------------------------------------------------------------
@@ -73,14 +73,23 @@ store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
 %% @doc removes terminated jobs from a list of running children
 %% @since 2012-01-12 15:15
 %%
--spec process_cmd_result(#egh{}, binary() | reference()) -> #egh{}.
+-spec process_cmd_result(#egh{}, binary() | reference(), any()) -> #egh{}.
 
-process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueue} = St, Id) ->
+process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueue} = St, Id, Res) ->
     F = fun(#chi{id=X}) ->
                 X == Id
         end,
     {Done, Cont} = lists:partition(F, Ch),
-    mpln_p_debug:pr({?MODULE, 'process_cmd_result done', ?LINE, Id, Done}, St#egh.debug, handler_job, 3),
+    [Job | _T] = Done,
+    mpln_p_debug:pr({?MODULE, ?LINE, 'process_cmd_result done', Id, Done}, St#egh.debug, handler_job, 3),
+
+    case Res of
+        {ok, {{_Ver, 200, _Txt}, _Hdr, _Body}} -> ok;
+        {ok, {{_Ver, 500, _Txt} = Er, _Hdr, _Body}} -> retry_job(St, Job, Er);
+        {ok, {{_Ver, 502, _Txt} = Er, _Hdr, _Body}} -> retry_job(St, Job, Er);
+        {ok, {{_Ver, 503, _Txt} = Er, _Hdr, _Body}} -> retry_job(St, Job, Er);
+        {could_not_parse_as_http, _Txt} -> retry_job(St, Job, Res)
+    end,
 
     Len = length(Cont),
     N = ejobman_rb:queue_len(Conn, Rqueue),
@@ -88,6 +97,29 @@ process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueu
     ejobman_stat:upd_stat_t(now(), Gid, Len, Queued, 1),
     
     St#egh{ch_run=Cont}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc add bad job to delayed queue for retry job
+%% @since 2013-08-15 20:56
+%%
+-spec retry_job(#egh{}, #job{}, any()) -> #egh{}.
+
+retry_job(#egh{retry=false}, _Job, _Res) ->
+    ok;
+
+retry_job(St, Job, Res) ->
+    case St#egh.group of
+        <<"delay1">> -> ok;
+        _ ->
+            Payload = Job#chi.payload,
+            Rkey = Ex = ejobman_group_handler:compose_group_name(<<"delay1">>),
+            mpln_p_debug:ir({?MODULE, ?LINE, 'retry_job', Res, Payload}),
+            Conn = St#egh.conn,
+            Bref = mpln_misc_web:make_term_binary(make_ref()),
+            ejobman_rb:send_dur_message(Conn#conn.channel, Ex, Rkey, Payload, Bref)
+    end,
+    St.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -114,15 +146,15 @@ send_to_estat(St, Ref, Data) ->
 %%
 %% @doc calls ejobman_handler with received command info
 %%
--spec proceed_cmd_type(#egh{}, binary(), binary(), binary(), any()) -> #egh{}.
+-spec proceed_cmd_type(#egh{}, binary(), binary(), binary(), any(), any(), any()) -> #egh{}.
 
-proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data) ->
-    Job = make_job(Tag, Ref, Data),
+proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data, Payload, Timestamp) ->
+    Job = make_job(Tag, Ref, Data, Payload, Timestamp),
     ejobman_log:log_job(State#egh.debug, Job),
     do_commands(State, Job);
 
-proceed_cmd_type(#egh{group=Group} = State, Other, Tag, Ref, _Data) ->
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Ref, Other}, State#egh.debug, run, 2),
+proceed_cmd_type(#egh{group=Group} = State, Other, Tag, Ref, _Data, _Payload, _Timestamp) ->
+    mpln_p_debug:pr({?MODULE, ?LINE, 'proceed_cmd_type other', Ref, Other}, State#egh.debug, run, 2),
     ejobman_rb:send_ack(State#egh.conn, Tag),
     erpher_et:trace_me(30, {?MODULE, Group}, 'proceed_cmd_type', 'not rest', {Ref, Other, _Data}),
     State.
@@ -131,9 +163,9 @@ proceed_cmd_type(#egh{group=Group} = State, Other, Tag, Ref, _Data) ->
 %%
 %% @doc fills in a #job record
 %%
--spec make_job(binary(), binary(), any()) -> #job{}.
+-spec make_job(binary(), binary(), any(), binary(), any()) -> #job{}.
 
-make_job(Tag, Ref, Data) ->
+make_job(Tag, Ref, Data, Payload, Timestamp) ->
     Info = ejobman_data:get_rest_info(Data),
     A = make_job_auth(Info),
     Method = ejobman_data:get_method(Info),
@@ -153,7 +185,9 @@ make_job(Tag, Ref, Data) ->
         host = Host,
         ip = Ip,
         params = Flat_params,
-        group = Group
+        group = Group,
+        payload = Payload,
+        timestamp = Timestamp
     },
     fill_id(New).
 
@@ -261,6 +295,9 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid, conn=Conn, queue=
 -spec do_one_command_real(#egh{}, [C], #job{}) -> [C].
 
 do_one_command_real(St, Ch, J) ->
+    Timedelay = case J#job.timestamp of undefined -> 0;
+        Timestamp -> Timestamp + St#egh.delay - mpln_misc_time:make_gregorian_seconds()
+    end,
     % parameters for ejobman_child
     Child_params = [
         {gh_pid, self()},
@@ -278,14 +315,15 @@ do_one_command_real(St, Ch, J) ->
         {ip, J#job.ip},
         {params, J#job.params},
         {auth, J#job.auth},
-        {debug, St#egh.debug}
+        {debug, St#egh.debug},
+        {delay, Timedelay}
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
     case Res of
         {ok, Pid} ->
-            add_child(Ch, Pid, J#job.id, J#job.tag);
+            add_child(Ch, Pid, J#job.id, J#job.tag, J#job.payload);
         {ok, Pid, _Info} ->
-            add_child(Ch, Pid, J#job.id, J#job.tag);
+            add_child(Ch, Pid, J#job.id, J#job.tag, J#job.payload);
         _ ->
             mpln_p_debug:er({?MODULE, ?LINE, 'do_one_command_real res', 'error', J#job.id, J#job.group, Res}),
             Ch
@@ -296,10 +334,10 @@ do_one_command_real(St, Ch, J) ->
 %% @doc adds child's pid to the list for later use
 %% (e.g.: assign a job, send ack to rabbit, kill, rip, etc...)
 %%
--spec add_child([#chi{}], pid(), reference(), binary()) -> [#chi{}].
+-spec add_child([#chi{}], pid(), reference(), binary(), binary()) -> [#chi{}].
 
-add_child(Children, Pid, Id, Tag) ->
-    Ch = #chi{pid = Pid, id = Id, start = now(), tag = Tag},
+add_child(Children, Pid, Id, Tag, Payload) ->
+    Ch = #chi{pid = Pid, id = Id, start = now(), tag = Tag, payload = Payload},
     [Ch | Children].
 
 %%-----------------------------------------------------------------------------

@@ -83,8 +83,7 @@ push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
         {Ex, Rkey} ->
             Bref = mpln_misc_web:make_term_binary(Ref),
             mpln_p_debug:pr({?MODULE, 'push_message', ?LINE, Conn#conn.channel, Gid, Ex, Rkey, Payload, Bref}, St#ejr.debug, msg, 4),
-            ejobman_rb:send_dur_message(Conn#conn.channel,
-                                        Ex, Rkey, Payload, Bref)
+            ejobman_rb:send_dur_message(Conn#conn.channel, Ex, Rkey, Payload, Bref)
     end.
 
 %%-----------------------------------------------------------------------------

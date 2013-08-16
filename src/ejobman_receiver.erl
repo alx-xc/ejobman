@@ -86,8 +86,7 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
     {reply, St#ejr.debug, St#ejr{debug=New}};
 
 handle_call(_N, _From, St) ->
-    mpln_p_debug:p("~p::~p other:~n~p~n",
-        [?MODULE, ?LINE, _N], St#ejr.debug, run, 2),
+    mpln_p_debug:p("~p::~p other:~n~p~n", [?MODULE, ?LINE, _N], St#ejr.debug, run, 2),
     {reply, {error, unknown_request}, St}.
 
 %------------------------------------------------------------------------------
@@ -104,15 +103,13 @@ handle_cast(logrotate, St) ->
     {noreply, St};
 
 handle_cast({tell_group, Gid, Exchange, Key}, St) ->
-    mpln_p_debug:pr({?MODULE, 'tell_group', ?LINE, Gid, Exchange, Key},
-        St#ejr.debug, run, 3),
+    mpln_p_debug:pr({?MODULE, 'tell_group', ?LINE, Gid, Exchange, Key}, St#ejr.debug, run, 3),
     New = store_group(St, Gid, Exchange, Key),
     {noreply, New};
 
 handle_cast({send_ack, Id, Tag}, #ejr{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
-    mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
-        St#ejr.debug, msg, 2),
+    mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res}, St#ejr.debug, msg, 2),
     {noreply, St};
 
 handle_cast(reload_config_signal, St) ->
@@ -120,8 +117,7 @@ handle_cast(reload_config_signal, St) ->
     {noreply, New};
 
 handle_cast(_Other, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
-        St#ejr.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other}, St#ejr.debug, run, 2),
     {noreply, St}.
 
 %------------------------------------------------------------------------------
@@ -281,10 +277,8 @@ prepare_part(C) ->
 %% @doc logs erlang vm pid and local host name
 %%
 log_sys_info(C) ->
-    mpln_p_debug:pr({?MODULE, 'prepare_all pid', ?LINE, os:getpid()},
-                    C#ejr.debug, run, 0),
-    mpln_p_debug:pr({?MODULE, 'prepare_all localhost', ?LINE,
-                     net_adm:localhost()}, C#ejr.debug, run, 0).
+    mpln_p_debug:ir({?MODULE, ?LINE, 'prepare_all pid', os:getpid()}),
+    mpln_p_debug:ir({?MODULE, ?LINE, 'prepare_all localhost', net_adm:localhost()}).
 
 %%-----------------------------------------------------------------------------
 %%

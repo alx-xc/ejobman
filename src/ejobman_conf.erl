@@ -78,20 +78,29 @@ get_config_group_handler(List) ->
               Val ->
                   Val
           end,
+    Delay = case proplists:get_value(delay, List) of
+        undefined -> 0;
+        Val_delay -> Val_delay
+    end,
+    Retry = case proplists:get_value(retry, List) of
+        undefined -> true;
+        Val_retry -> Val_retry
+    end,
     #egh{
           jit_log_level = proplists:get_value(jit_log_level, Gh, 0),
           jit_log_keep_n = proplists:get_value(jit_log_keep_n, Gh, 1000),
           jit_log_keep_time = proplists:get_value(jit_log_keep_time, Gh, 72),
-          http_connect_timeout = proplists:get_value(http_connect_timeout,
-                                                     Gh, ?HTTP_CONNECT_TIMEOUT),
+          http_connect_timeout = proplists:get_value(http_connect_timeout, Gh, ?HTTP_CONNECT_TIMEOUT),
           http_timeout = proplists:get_value(http_timeout, Gh, ?HTTP_TIMEOUT),
           schema_rewrite = proplists:get_value(schema_rewrite, Gh, []),
           url_rewrite = proplists:get_value(url_rewrite, Gh, []),
           id = proplists:get_value(id, List),
           debug = proplists:get_value(debug, Gh, []),
           group = Gid,
-          max = Max
-        }.
+          max = Max,
+          delay = Delay,
+          retry = Retry
+    }.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -102,8 +111,7 @@ get_config_group_handler(List) ->
 
 get_config_child(List) ->
     #child{
-        http_connect_timeout = proplists:get_value(http_connect_timeout, List,
-            ?HTTP_CONNECT_TIMEOUT),
+        http_connect_timeout = proplists:get_value(http_connect_timeout, List, ?HTTP_CONNECT_TIMEOUT),
         http_timeout = proplists:get_value(http_timeout, List, ?HTTP_TIMEOUT),
         schema_rewrite = proplists:get_value(schema_rewrite, List, []),
         url_rewrite = proplists:get_value(url_rewrite, List, []),
@@ -119,7 +127,8 @@ get_config_child(List) ->
         ip = proplists:get_value(ip, List),
         auth = proplists:get_value(auth, List),
         params = proplists:get_value(params, List, []),
-        debug = proplists:get_value(debug, List, [])
+        debug = proplists:get_value(debug, List, []),
+        delay = proplists:get_value(delay, List, [])
     }.
 
 %%-----------------------------------------------------------------------------
@@ -218,8 +227,7 @@ fill_config_receiver(List) ->
     Rses = ejobman_conf_rabbit:stuff_rabbit_with(List),
     #ejr{
         rses = Rses,
-        temp_rt_key_for_group = proplists:get_value(temp_rt_key_for_group,
-                                                    List),
+        temp_rt_key_for_group = proplists:get_value(temp_rt_key_for_group, List),
         debug = proplists:get_value(debug, List, []),
         log = proplists:get_value(log, List),
         pid_file = proplists:get_value(pid_file, List)
@@ -279,7 +287,9 @@ fill_job_groups(List) ->
     F = fun(Small) ->
         Id = proplists:get_value(name, Small),
         Max = proplists:get_value(max_children, Small),
-        #jgroup{id=Id, max_children=Max}
+        Delay = proplists:get_value(delay, Small, 0),
+        Retry = proplists:get_value(retry, Small),
+        #jgroup{id=Id, max_children=Max, delay=Delay, retry=Retry}
     end,
     lists:map(F, L2).
 

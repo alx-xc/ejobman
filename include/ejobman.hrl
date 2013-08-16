@@ -6,7 +6,9 @@
 
 -record(jgroup, {
     id,
-    max_children
+    max_children, % max count of working jobs
+    delay = 0, % delay time, s
+    retry = true :: true|false % retry job when failed
 }).
 
 -record(pool, {

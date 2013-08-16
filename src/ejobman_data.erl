@@ -40,7 +40,7 @@
 -export([get_auth_keys/1]).
 -export([get_group/1]).
 -export([del_auth_info/1]).
--export([get_ip/1]).
+-export([get_ip/1, get_timestamp/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -184,6 +184,18 @@ get_auth_type(Data) ->
 
 get_auth_user(Data) ->
     get_value(Data, <<"user">>).
+
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "timestamp" item from deserialized auth_info
+%% json structure
+%% @since 2013-08-15 15:19
+%%
+-spec get_timestamp(any()) -> any().
+
+get_timestamp(Data) ->
+    get_value(Data, timestamp).
 
 %%-----------------------------------------------------------------------------
 %%

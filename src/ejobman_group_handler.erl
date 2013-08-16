@@ -93,10 +93,10 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 
-handle_cast({cmd_result, _Res, T1, T2, Id}, St) ->
+handle_cast({cmd_result, Res, T1, T2, Id}, St) ->
     Dur = timer:now_diff(T2, T1),
     mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur}, St#egh.debug, job, 4),
-    St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id),
+    St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id, Res),
     New = ejobman_group_handler_cmd:do_waiting_jobs(St_r),
     {noreply, New};
 
@@ -124,14 +124,14 @@ handle_info(timeout, #egh{id=Id, group=Group}=State) ->
     mpln_p_debug:pr({?MODULE, 'handle_info timeout', ?LINE, Id, Group}, State#egh.debug, run, 6),
     {noreply, State};
 
-handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
-            #egh{id=Id, group=Group} = State) ->
+handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req, #egh{id=Id, group=Group} = State) ->
     mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, _Req}, State#egh.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
     Sid = ejobman_rb:get_prop_id(Props),
+    Timestamp = ejobman_rb:get_timestamp(Props),
     erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive', {Id, Sid, Content}),
-    New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
+    New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload, Timestamp),
     {noreply, New};
 
 handle_info(#'basic.consume_ok'{consumer_tag = _Tag}, State) ->

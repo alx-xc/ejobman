@@ -77,7 +77,11 @@ terminate_children(#ejm{group_handler_run=List}) ->
 
 prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups, max_children=Max} = St) ->
     Def_group = #jgroup{id=?GID_DEFAULT, max_children=Max},
-    List = [Def_group | Groups],
+
+    Delay_1_group_name = <<"delay1">>,
+    Delay_1_group = #jgroup{id=Delay_1_group_name, max_children=Max, delay=15*60},
+
+    List = [Def_group | [Delay_1_group | Groups]],
     Res = lists:map(fun(X) -> start_group_handler(Gh, X) end, List),
     mpln_p_debug:pr({?MODULE, 'prepare_group_handlers', ?LINE, Res}, St#ejm.debug, run, 3),
     St#ejm{group_handler_run=Res}.
@@ -89,12 +93,14 @@ prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups, max_children=Ma
 %% @doc starts one group handler with given parameters. Returned value
 %% unnecessary in fact, just for runtime debugging
 %%
-start_group_handler(Gh_params, #jgroup{id=Gid, max_children=Max}) ->
+start_group_handler(Gh_params, #jgroup{id=Gid, max_children=Max, delay=Delay, retry=Retry}) ->
     Id = make_ref(),
     Short_params = [
                  {id, Id},
                  {group, Gid},
-                 {max_children, Max}
+                 {max_children, Max},
+                 {delay, Delay},
+                 {retry, Retry}
                 ],
     Ch_params = [{group_handler, Gh_params} | Short_params],
     StartFunc = {ejobman_group_handler, start_link, [Ch_params]},

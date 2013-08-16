@@ -45,7 +45,7 @@
 -export([send_ack/2]).
 -export([start_channel/2, create_queue/2, create_exchange/3, bind_queue/4]).
 -export([setup_consumer/2, cancel_consumer/2]).
--export([start_receiver/1, make_prop_id/1, get_prop_id/1]).
+-export([start_receiver/1, make_prop_id/1, get_prop_id/1, get_timestamp/1]).
 -export([send_message/4, send_message/5, send_message2/4]).
 -export([channel_qos/3, send_dur_message/4, send_dur_message/5]).
 -export([queue_len/2]).
@@ -268,6 +268,15 @@ get_prop_id(Props) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc extracts timestamp from amqp basic property
+%%
+-spec get_timestamp(#'P_basic'{}) -> binary().
+
+get_timestamp(Props) ->
+    Props#'P_basic'.timestamp.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc publishes persistent AMQP message with given payload to exchange
 %% @since 2011-07-15
 %%
@@ -275,11 +284,12 @@ get_prop_id(Props) ->
 
 send_dur_message(Channel, X, RoutingKey, Payload, Id) ->
     Pr = make_prop_id(Id),
-    Props = Pr#'P_basic'{delivery_mode = 2},
+    Props = Pr#'P_basic'{delivery_mode = 2, timestamp = mpln_misc_time:make_gregorian_seconds()},
+    %erlang:display(Props),
     send_message(Channel, X, RoutingKey, Payload, Props).
 
 send_dur_message(Channel, X, RoutingKey, Payload) ->
-    Props = #'P_basic'{delivery_mode = 2},
+    Props = #'P_basic'{delivery_mode = 2, timestamp = mpln_misc_time:make_gregorian_seconds()},
     send_message(Channel, X, RoutingKey, Payload, Props).
 
 %%

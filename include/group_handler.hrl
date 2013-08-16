@@ -22,7 +22,9 @@
     jit_log_level        :: non_neg_integer(),
     jit_log_keep_n       :: non_neg_integer(),
     jit_log_keep_time    :: non_neg_integer(),
-    debug = []           :: list()
+    debug = []           :: list(),
+    delay = 0 :: non_neg_integer(),
+    retry = true :: true|false
 }).
 
 -endif.
