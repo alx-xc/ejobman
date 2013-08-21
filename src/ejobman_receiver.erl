@@ -276,7 +276,7 @@ prepare_part(C) ->
 %%
 %% @doc logs erlang vm pid and local host name
 %%
-log_sys_info(C) ->
+log_sys_info(_C) ->
     mpln_p_debug:ir({?MODULE, ?LINE, 'prepare_all pid', os:getpid()}),
     mpln_p_debug:ir({?MODULE, ?LINE, 'prepare_all localhost', net_adm:localhost()}).
 

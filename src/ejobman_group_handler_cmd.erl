@@ -80,15 +80,19 @@ process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueu
                 X == Id
         end,
     {Done, Cont} = lists:partition(F, Ch),
-    [Job | _T] = Done,
     mpln_p_debug:pr({?MODULE, ?LINE, 'process_cmd_result done', Id, Done}, St#egh.debug, handler_job, 3),
 
-    case Res of
-        {ok, {{_Ver, 200, _Txt}, _Hdr, _Body}} -> ok;
-        {ok, {{_Ver, 500, _Txt} = Er, _Hdr, _Body}} -> retry_job(St, Job, Er);
-        {ok, {{_Ver, 502, _Txt} = Er, _Hdr, _Body}} -> retry_job(St, Job, Er);
-        {ok, {{_Ver, 503, _Txt} = Er, _Hdr, _Body}} -> retry_job(St, Job, Er);
-        {could_not_parse_as_http, _Txt} -> retry_job(St, Job, Res)
+    case Done of
+        [Job | _T] ->
+            case Res of
+                {ok, {{_Ver, 200, _Txt}, _Hdr, _Body}} -> ok;
+                {ok, {{_Ver, 500, _Txt} = Er, _Hdr, _Body}} -> process_bad_result(St, Job, Er);
+                {ok, {{_Ver, 502, _Txt} = Er, _Hdr, _Body}} -> process_bad_result(St, Job, Er);
+                {ok, {{_Ver, 503, _Txt} = Er, _Hdr, _Body}} -> process_bad_result(St, Job, Er);
+                {could_not_parse_as_http, _Txt} -> process_bad_result(St, Job, Res);
+                _ -> mpln_p_debug:ir({?MODULE, ?LINE, 'process_cmd_result unknown result', Res})
+            end;
+        _ -> mpln_p_debug:er({?MODULE, ?LINE, 'process_cmd_result job not found', Done})
     end,
 
     Len = length(Cont),
@@ -97,6 +101,9 @@ process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueu
     ejobman_stat:upd_stat_t(now(), Gid, Len, Queued, 1),
     
     St#egh{ch_run=Cont}.
+
+process_bad_result(St, Job, Res) ->
+    retry_job(St, Job, Res).
 
 %%-----------------------------------------------------------------------------
 %%

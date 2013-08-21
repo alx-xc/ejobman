@@ -187,7 +187,13 @@ process_cmd(St) ->
 -spec real_cmd(#child{}) -> #child{}.
 
 real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid, http_connect_timeout=Conn_t, http_timeout=Http_t, delay=Delay} = St) ->
-    timer:sleep(Delay*1000),
+    case Delay of
+        DelayChecked when is_integer(DelayChecked) andalso DelayChecked > 0 ->
+            timer:sleep(DelayChecked*1000);
+        _ ->
+            ok
+    end,
+
     mpln_p_debug:pr({?MODULE, ?LINE, real_cmd, params, Id, self(), St}, St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     Method_str = ejobman_clean:get_method_str(Method),
@@ -450,7 +456,7 @@ match_one_host_regex(Host, Src_url) ->
 -spec rewrite_host(#child{}, list(), string(), string(), tuple()) ->
     {string(), list()}.
 
-rewrite_host(#child{id=Id} = St, Config, Method, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
+rewrite_host(St, Config, Method, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
     case proplists:get_value(dst_host_part, Config) of
         undefined ->
             New_url = Url;
@@ -538,7 +544,7 @@ select_host_field(Req_host, _Url_host) ->
 -spec proceed_rewrite_host(#child{}, atom(), list(), list(), integer(),
     list(), list()) -> string().
 
-proceed_rewrite_host(St, Scheme, Auth, Host, Port, Path, Query) ->
+proceed_rewrite_host(_St, Scheme, Auth, Host, Port, Path, Query) ->
     % http_uri:parse("http://l:p@host.localdomain/goo?foo=baz")
     % {https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
     if  is_atom(Scheme) ->

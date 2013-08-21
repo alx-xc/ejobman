@@ -88,7 +88,7 @@ make_stat_cur_info(St) ->
 %%
 -spec get_stat_t_info(#ejm{}) -> [{any(), any()}].
 
-get_stat_t_info(St) ->
+get_stat_t_info(_St) ->
     Min = get_stat_t_info2(?STAT_TAB_M),
     Hour = get_stat_t_info2(?STAT_TAB_H),
     [{"minute data", Min}, {"hour data", Hour}].

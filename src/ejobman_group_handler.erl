@@ -110,9 +110,9 @@ handle_cast(_Other, St) ->
     {noreply, St}.
 
 %------------------------------------------------------------------------------
-terminate(Reason, #egh{id=Id, group=Group, conn=Conn} = State) ->
+terminate(Reason, #egh{group=Group, conn=Conn}) ->
     ejobman_rb:teardown_channel(Conn),
-    mpln_p_debug:er({?MODULE, ?LINE, terminate}),
+    mpln_p_debug:er({?MODULE, ?LINE, terminate, Group, Reason}),
     ok.
 
 %------------------------------------------------------------------------------
