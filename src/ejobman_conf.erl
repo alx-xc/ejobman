@@ -96,6 +96,7 @@ get_config_group_handler(List) ->
           url_rewrite = proplists:get_value(url_rewrite, Gh, []),
           id = proplists:get_value(id, List),
           debug = proplists:get_value(debug, Gh, []),
+          error_mail = proplists:get_value(error_mail, Gh, []),
           group = Gid,
           max = Max,
           delay = Delay,

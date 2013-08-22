@@ -103,7 +103,17 @@ process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueu
     St#egh{ch_run=Cont}.
 
 process_bad_result(St, Job, Res) ->
+    send_job_result(St, Job, Res),
     retry_job(St, Job, Res).
+
+send_job_result(#egh{error_mail = []} = St, Job, Res) ->
+    ok;
+
+send_job_result(#egh{error_mail = Mails} = St, Job, Res) ->
+    Job_bin = mpln_misc_web:make_term_binary(Job),
+    Res_bin = mpln_misc_web:make_term_binary(Res),
+    Body = <<Job_bin/binary, <<" ">>/binary, Res_bin/binary>>,
+    mpln_p_debug:sendmail(Mails, <<"ERROR_REPORT ERPHER">>, Body).
 
 %%-----------------------------------------------------------------------------
 %%

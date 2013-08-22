@@ -24,7 +24,8 @@
     jit_log_keep_time    :: non_neg_integer(),
     debug = []           :: list(),
     delay = 0 :: non_neg_integer(),
-    retry = true :: true|false
+    retry = true :: true|false,
+    error_mail :: list()
 }).
 
 -endif.
