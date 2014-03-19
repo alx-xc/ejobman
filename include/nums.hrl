@@ -6,7 +6,7 @@
 
 -define(STAT_T_KEEP_MINUTES, 62).
 -define(STAT_T_KEEP_HOURS, 26).
--define(STAT_T, 1000).
+-define(STAT_T, 1000). % milliseconds
 -define(STAT_KEEP_TIME, 72). % hours
 -define(STAT_CLEAN_INTERVAL, 60). % seconds
 -define(STAT_FLUSH_INTERVAL, 60). % seconds

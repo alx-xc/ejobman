@@ -51,7 +51,7 @@
 
 -include_lib("kernel/include/file.hrl").
 
--include("estat.hrl").
+-include("ej_stat.hrl").
 -include("job.hrl").
 -include("amqp_client.hrl").
 
@@ -59,17 +59,16 @@
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init(_) ->
+    mpln_p_debug:ir({?MODULE, ?LINE, 'init...'}),
     C = ejobman_conf:get_config_stat(),
     New = prepare_all(C),
     process_flag(trap_exit, true), % to save storage
     erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#est.debug, run, 1),
+    mpln_p_debug:ir({?MODULE, ?LINE, 'init done'}),
     {ok, New, ?STAT_T}.
 
 %------------------------------------------------------------------------------
--spec handle_call(any(), any(), #est{}) ->
-                         {stop, normal, ok, #est{}}
-                             | {reply, any(), #est{}}.
+-spec handle_call(any(), any(), #ejst{}) -> {stop, normal, ok, #ejst{}} | {reply, any(), #ejst{}}.
 %%
 %% Handling call messages
 %% @since 2011-12-20 13:34
@@ -88,15 +87,15 @@ handle_call({stat_t, Type}, _From, St) ->
 %% @doc set new debug level for facility
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
-    New = mpln_misc_run:update_debug_level(St#est.debug, Facility, Level),
-    {reply, St#est.debug, St#est{debug=New}};
+    New = mpln_misc_run:update_debug_level(St#ejst.debug, Facility, Level),
+    {reply, St#ejst.debug, St#ejst{debug=New}};
 
-handle_call(_N, _From, St) ->
-    mpln_p_debug:pr({?MODULE, other, ?LINE, _N}, St#est.debug, run, 2),
+handle_call(_Other, _From, St) ->
+    mpln_p_debug:er({?MODULE, ?LINE, call_other, _Other}),
     {reply, {error, unknown_request}, St}.
 
 %------------------------------------------------------------------------------
--spec handle_cast(any(), #est{}) -> any().
+-spec handle_cast(any(), #ejst{}) -> any().
 %%
 %% Handling cast messages
 %% @since 2011-12-20 13:34
@@ -105,12 +104,10 @@ handle_cast(stop, St) ->
     {stop, normal, St};
 
 handle_cast({add_job, Time, Tag}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast add_job', ?LINE, Time, Tag}, St#est.debug, run, 4),
     add_job_stat(Time, Tag),
     {noreply, St};
 
 handle_cast({upd_job, Time, Tag, Work, Queued, Worked}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast upd_job', ?LINE, Time, Tag}, St#est.debug, run, 4),
     upd_job_stat(Time, Tag, Work, Queued, Worked),
     {noreply, St};
 
@@ -119,36 +116,30 @@ handle_cast(reload_config_signal, St) ->
     {noreply, New};
 
 handle_cast(_Other, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
-        St#est.debug, run, 2),
+    mpln_p_debug:er({?MODULE, ?LINE, cast_other, _Other}),
     {noreply, St}.
 
 %------------------------------------------------------------------------------
 terminate(_, State) ->
-    New = do_flush(State),
-    stop_storage(New),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#est.debug, run, 1),
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#ejst.debug, run, 1),
     ok.
 
 %------------------------------------------------------------------------------
--spec handle_info(any(), #est{}) -> any().
+-spec handle_info(any(), #ejst{}) -> any().
 %%
 %% Handling all non call/cast messages
 %%
 handle_info(timeout, State) ->
-    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#est.debug, run, 3),
-    New = periodic_check(State),
-    {noreply, New};
+    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejst.debug, run, 3),
+    %New = periodic_check(State),
+    {noreply, State};
 
 handle_info(periodic_check, State) ->
-    mpln_p_debug:pr({?MODULE, 'info_periodic_check', ?LINE},
-                    State#est.debug, run, 6),
     New = periodic_check(State),
     {noreply, New};
 
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, 'info_other', ?LINE, _Req},
-                    State#est.debug, run, 2),
+    mpln_p_debug:er({?MODULE, ?LINE, info_other, _Req}),
     {noreply, State}.
 
 %------------------------------------------------------------------------------
@@ -253,12 +244,10 @@ reload_config_signal() ->
 %%
 %% @doc does all necessary preparations
 %%
--spec prepare_all(#est{}) -> #est{}.
+-spec prepare_all(#ejst{}) -> #ejst{}.
 
 prepare_all(C) ->
-    Stp = prepare_stat(C#est{start=now(), pid=self()}),
-    erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
-    Stp.
+    prepare_stat(C#ejst{start=now(), pid=self()}).
     
 %%-----------------------------------------------------------------------------
 %%
@@ -268,44 +257,17 @@ prepare_stat(St) ->
     ets:new(?STAT_TAB_M, [named_table, set, protected, {keypos,1}]),
     ets:new(?STAT_TAB_H, [named_table, set, protected, {keypos,1}]),
     St.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc opens storage file
-%%
-prepare_storage(#est{storage_base=Base} = C) ->
-    Name = mpln_misc_log:get_fname(Base),
-    mpln_p_debug:pr({?MODULE, 'prepare_storage', ?LINE, Name},
-                    C#est.debug, file, 2),
-    filelib:ensure_dir(Name),
-    case file:open(Name, [append, raw, binary]) of
-        {ok, Fd} ->
-            C#est{storage_fd=Fd, storage_start=now(), storage_cur_name=Name};
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'prepare_all open error', ?LINE, Reason},
-                            C#est.debug, run, 0),
-            C
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc flushes current data to file and closes current storage file
-%%
-stop_storage(#est{storage_fd=Fd} = St) ->
-    do_flush(St),
-    file:close(Fd).
-
 %%-----------------------------------------------------------------------------
 %%
 %% @doc performs periodic checks, triggers timer for next periodic check
 %%
--spec periodic_check(#est{}) -> #est{}.
+-spec periodic_check(#ejst{}) -> #ejst{}.
 
-periodic_check(#est{timer=Ref, clean_interval=T} = St) ->
+periodic_check(#ejst{timer=Ref, clean_interval=T} = St) ->
     mpln_misc_run:cancel_timer(Ref),
     New = clean_old(St),
     Nref = erlang:send_after(T * 1000, self(), periodic_check),
-    New#est{timer=Nref}.
+    New#ejst{timer=Nref}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -347,112 +309,23 @@ add_hourly_job_stat(Time, Tag) ->
 %%
 %% @doc cleans old statistic and job info files
 %%
--spec clean_old(#est{}) -> #est{}.
+-spec clean_old(#ejst{}) -> #ejst{}.
 
 clean_old(St) ->
     clean_old_statistic(St),
     St.
 
-clean_old_statistic(#est{stat_limit_cnt_h=Hlimit, stat_limit_cnt_m=Mlimit}) ->
-    estat_misc:clean_timed_stat(?STAT_TAB_H, Hlimit),
-    estat_misc:clean_timed_stat(?STAT_TAB_M, Mlimit).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc does the flushing of accumulated info to storage
-%%
--spec do_flush(#est{}) -> #est{}.
-
-do_flush(#est{storage=S} = St) ->
-    List = lists:reverse(S),
-    L2 = lists:map(fun(X) -> create_binary_item(St, X) end, List),
-    mpln_p_debug:pr({?MODULE, 'do_flush', ?LINE, L2},
-                    St#est.debug, run, 6),
-    proceed_flush(St, L2).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc proceeds with flushing
-%%
-proceed_flush(St, []) ->
-    St#est{storage=[], flush_last=now()};
-
-proceed_flush(#est{storage_fd=Fd} = St, List) ->
-    check_separator(St),
-    Json = mochijson2:encode(List),
-    Bin = unicode:characters_to_binary(Json),
-    case file:write(Fd, Bin) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'proceed_flush error', ?LINE, Reason},
-                            St#est.debug, run, 0)
-    end,
-    St#est{storage=[], flush_last=now()}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks whether the json field separator need to be written
-%%
-check_separator(#est{storage_cur_name=Name} = St) ->
-    case filelib:file_size(Name) of
-        0 ->
-            ok;
-        _ ->
-            add_separator(St)
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc adds the json field separator to the storage file if this file has
-%% some data
-%%
-add_separator(#est{storage_fd=Fd} = St) ->
-    case file:write(Fd, <<",\n">>) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'add_separator error', ?LINE, Reason},
-                            St#est.debug, run, 0)
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates json binary from the fetched item list
-%%
--spec create_binary_item(#est{}, tuple()) -> list().
-
-create_binary_item(_St, {{Ref, Stage}, _Time, Now, undefined}) ->
-    [
-     {<<"ref">>, mpln_misc_web:make_binary(Ref)},
-     {<<"stage">>, Stage},
-     {<<"time">>, list_to_binary(mpln_misc_time:get_time_str_us(Now))}
-    ];
-
-create_binary_item(_St, {{Ref, Stage}, _Time, Now, List}) ->
-    [
-     {<<"ref">>, mpln_misc_web:make_binary(Ref)},
-     {<<"stage">>, Stage},
-     {<<"time">>, list_to_binary(mpln_misc_time:get_time_str_us(Now))},
-     {<<"params">>, List}
-    ];
-
-create_binary_item(St, _Item) ->
-    mpln_p_debug:pr({?MODULE, 'create_binary_item unknown', ?LINE, _Item},
-                    St#est.debug, run, 4),
-    [].
+clean_old_statistic(#ejst{stat_limit_cnt_h=Hlimit, stat_limit_cnt_m=Mlimit}) ->
+    estat_misc:clean_timed_stat(?STAT_TAB_H, Hlimit*60*60),
+    estat_misc:clean_timed_stat(?STAT_TAB_M, Mlimit*60).
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc fetches config from updated environment and stores it in the state.
 %%
--spec process_reload_config(#est{}) -> #est{}.
+-spec process_reload_config(#ejst{}) -> #ejst{}.
 
-process_reload_config(St) ->
-    Stf = do_flush(St),
-    stop_storage(Stf),
-
-    C = ejobman_conf:get_config_stat(),
-    prepare_storage(C).
+process_reload_config(_St) ->
+    ejobman_conf:get_config_stat().
 
 %%-----------------------------------------------------------------------------

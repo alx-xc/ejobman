@@ -49,7 +49,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--include("estat.hrl").
+-include("ej_stat.hrl").
 -include("ejobman.hrl").
 -include("ejobman_child.hrl").
 -include("group_handler.hrl").
@@ -169,7 +169,7 @@ get_config_receiver() ->
 %% values
 %% @since 2011-12-20 13:19
 %%
--spec get_config_stat() -> #est{}.
+-spec get_config_stat() -> #ejst{}.
 
 get_config_stat() ->
     List = get_config_list(),
@@ -240,11 +240,11 @@ fill_config_receiver(List) ->
 %% ejr record
 %% @since 2011-12-20 13:22
 %%
--spec fill_config_stat(list()) -> #est{}.
+-spec fill_config_stat(list()) -> #ejst{}.
 
 fill_config_stat(All_list) ->
     List = proplists:get_value(estat, All_list, []),
-    #est{
+    #ejst{
         % amount and time for last jobs
         stat_limit_n = proplists:get_value(stat_limit_n, List, ?STAT_LIMIT_N),
         stat_limit_t = proplists:get_value(stat_limit_t, List, ?STAT_LIMIT_T),
@@ -252,7 +252,6 @@ fill_config_stat(All_list) ->
         stat_limit_cnt_h = proplists:get_value(stat_limit_cnt_h, List, ?STAT_LIMIT_CT_H),
         stat_limit_cnt_m = proplists:get_value(stat_limit_cnt_m, List, ?STAT_LIMIT_CT_M),
 
-        rt_info_file = proplists:get_value(rt_info_file, List),
         rotate_interval = proplists:get_value(rotate_interval, List, 'hour'),
         debug = proplists:get_value(debug, List, []),
         storage_base = proplists:get_value(storage_base, List, ?STAT_STORAGE),

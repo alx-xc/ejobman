@@ -79,7 +79,7 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
     {reply, St#egh.debug, St#egh{debug=New}};
 
 handle_call(_N, _From, St) ->
-    mpln_p_debug:er({?MODULE, 'call other', ?LINE, _N}),
+    mpln_p_debug:er({?MODULE, ?LINE, call_other, _N}),
     {reply, {error, unknown_request}, St}.
 
 %------------------------------------------------------------------------------
@@ -94,19 +94,16 @@ handle_cast(stop, St) ->
     {stop, normal, St};
 
 handle_cast({cmd_result, Res, T1, T2, Id}, St) ->
-    Dur = timer:now_diff(T2, T1),
-    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur}, St#egh.debug, job, 4),
     St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id, Res),
     New = ejobman_group_handler_cmd:do_waiting_jobs(St_r),
     {noreply, New};
 
 handle_cast({send_ack, Id, Tag}, #egh{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
-    mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res}, St#egh.debug, msg, 2),
     {noreply, St};
 
 handle_cast(_Other, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other}, St#egh.debug, run, 2),
+    mpln_p_debug:er({?MODULE, ?LINE, cast_other, _Other}),
     {noreply, St}.
 
 %------------------------------------------------------------------------------

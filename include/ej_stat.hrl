@@ -1,10 +1,10 @@
--ifndef(estat).
--define(estat, true).
+-ifndef(ej_stat).
+-define(ej_stat, true).
 
 -include("nums.hrl").
 
 % state of ejobman_stat
--record(est, {
+-record(ejst, {
     pid            :: pid(),       % own pid
     start          :: tuple(),     % server start time in now() format
     timer          :: reference(), % timer ref
@@ -20,7 +20,6 @@
     flush_interval :: non_neg_integer(), % interval to flush storage. Seconds
     flush_number   :: non_neg_integer(), % number of messages to flush storage.
     flush_last = {0,0,0} :: tuple(),     % last time of flush. Now.
-    rt_info_file         :: string(),    % file to write runtime info to
     stat_limit_n   :: non_neg_integer(), % amount
     stat_limit_t   :: non_neg_integer(), % time, seconds
     stat_limit_cnt_h :: non_neg_integer(), % time, hours
