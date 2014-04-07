@@ -285,7 +285,6 @@ get_timestamp(Props) ->
 send_dur_message(Channel, X, RoutingKey, Payload, Id) ->
     Pr = make_prop_id(Id),
     Props = Pr#'P_basic'{delivery_mode = 2, timestamp = mpln_misc_time:make_gregorian_seconds()},
-    %erlang:display(Props),
     send_message(Channel, X, RoutingKey, Payload, Props).
 
 send_dur_message(Channel, X, RoutingKey, Payload) ->

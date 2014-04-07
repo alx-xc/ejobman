@@ -54,7 +54,6 @@
 -spec store_rabbit_cmd(#egh{}, binary(), binary(), binary(), integer()) -> #egh{}.
 
 store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin, Timestamp) ->
-    %erlang:display({?MODULE, ?LINE, 'store_rabbit_cmd'}),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
             mpln_p_debug:er({?MODULE, ?LINE, 'store_rabbit_cmd error', Reason, Ref, Bin}),

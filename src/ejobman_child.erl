@@ -371,6 +371,10 @@ rewrite_port(_, Port, _) ->
 %%
 -spec rewrite_addr(#child{}, string(), string(), tuple()) -> {string(), list()}.
 
+rewrite_addr(#child{url_rewrite=[]} = St, Method, Url, {_Scheme, _Auth, Host, _Port, Path, Query} = Data) ->
+    H = compose_headers(St, [], Method, Host, Path, Query),
+    {Url, H};
+
 rewrite_addr(#child{url_rewrite=Rew_conf} = St, Method, Url, {_Scheme, _Auth, Host, _Port, Path, Query} = Data) ->
     case find_matching_host(Rew_conf, Host) of
         {ok, Config} ->
@@ -457,12 +461,9 @@ match_one_host_regex(Host, Src_url) ->
     {string(), list()}.
 
 rewrite_host(St, Config, Method, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
-    case proplists:get_value(dst_host_part, Config) of
-        undefined ->
-            New_url = Url;
-        New_host ->
-            New_url = proceed_rewrite_host(St, Scheme, Auth, New_host, Port, Path, Query)
-    end,
+    New_host = proplists:get_value(dst_host_part, Config, Host),
+    New_port = proplists:get_value(dst_port_part, Config, Port),
+    New_url = proceed_rewrite_host(St, Scheme, Auth, New_host, New_port, Path, Query),
     H = compose_headers(St, Config, Method, Host, Path, Query),
     {New_url, H}.
 

@@ -220,7 +220,6 @@ reload_config_signal() ->
 -spec periodic_check(#ejm{}) -> #ejm{}.
 
 periodic_check(#ejm{timer=Ref} = St) ->
-    %erlang:display({?MODULE, ?LINE, periodic_check}),
     mpln_p_debug:pr({?MODULE, 'periodic_check', ?LINE}, St#ejm.debug, run, 5),
     mpln_misc_run:cancel_timer(Ref),
     St_c = check_children(St),
