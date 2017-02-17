@@ -32,6 +32,6 @@
         ejobman_child_supervisor
     ]},
     {mod, {ejobman_app,[]}},
-    {applications, [kernel, stdlib, inets, ssl, erpher_rt_stat]} %rabbit
+    {applications, [kernel, stdlib, inets, ssl]}
 ]}.
 
