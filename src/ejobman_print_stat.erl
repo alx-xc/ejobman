@@ -100,7 +100,7 @@ get_stat_t_info2(Tab) ->
 %%
 %% @doc fetches names and sizes from a working stat dictionary
 %%
--spec get_stat_work_info(dict()) -> [{any(), non_neg_integer()}].
+-spec get_stat_work_info(dict:dict()) -> [{any(), non_neg_integer()}].
 
 get_stat_work_info(Data) ->
     F = fun(Gid, Cur, Acc) ->

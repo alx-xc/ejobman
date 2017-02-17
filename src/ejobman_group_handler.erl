@@ -47,7 +47,7 @@
 %%%----------------------------------------------------------------------------
 
 -include("group_handler.hrl").
--include("amqp_client.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 -include("rabbit_session.hrl").
 
 %%%----------------------------------------------------------------------------

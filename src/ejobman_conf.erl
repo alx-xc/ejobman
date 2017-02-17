@@ -97,6 +97,7 @@ get_config_group_handler(List) ->
           id = proplists:get_value(id, List),
           debug = proplists:get_value(debug, Gh, []),
           error_mail = proplists:get_value(error_mail, Gh, []),
+          error_mail_cmd = proplists:get_value(error_mail_cmd, Gh),
           group = Gid,
           max = Max,
           delay = Delay,

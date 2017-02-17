@@ -9,7 +9,7 @@
     group, % group id
     max        :: non_neg_integer(), % max children for the group
     ch_run = []:: list(),   % running children
-    ch_queue   :: queue(),  % fetched from amqp but not yet started children
+    ch_queue   :: queue:queue(),  % fetched from amqp but not yet started children
     vhost      :: binary(), % amqp virtual host
     conn,
     exchange   :: binary(), % amqp exchange for a group
@@ -25,7 +25,8 @@
     debug = []           :: list(),
     delay = 0 :: non_neg_integer(),
     retry = true :: true|false,
-    error_mail :: list()
+    error_mail :: list(),
+    error_mail_cmd :: binary()
 }).
 
 -endif.

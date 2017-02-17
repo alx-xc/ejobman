@@ -50,7 +50,7 @@
 %%%----------------------------------------------------------------------------
 
 -include("receiver.hrl").
--include("amqp_client.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks

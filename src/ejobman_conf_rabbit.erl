@@ -58,10 +58,10 @@ stuff_rabbit_with(List) ->
         'user' = proplists:get_value(user, R, <<"guest">>),
         'password' = proplists:get_value(password, R, <<"guest">>),
         'vhost' = proplists:get_value(vhost, R, <<"/">>),
-        'exchange' = proplists:get_value(exchange, R, <<"test_exch">>),
+        'exchange' = proplists:get_value(exchange, R, <<"ejobman">>),
         'exchange_type' = proplists:get_value(exchange_type, R, <<"fanout">>),
-        'queue' = proplists:get_value(queue, R, <<"test_queue">>),
-        'routing_key' = proplists:get_value(routing_key, R, <<"test_rt_key">>)
+        'queue' = proplists:get_value(queue, R, <<"ej_broker">>),
+        'routing_key' = proplists:get_value(routing_key, R, <<"ej_routing">>)
     }
 .
 %%-----------------------------------------------------------------------------

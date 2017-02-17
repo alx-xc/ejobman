@@ -47,7 +47,7 @@
 
 -include("ejobman_child.hrl").
 -include("job.hrl").
--include("amqp_client.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 -include("sign_req.hrl").
 
 -define(CTYPE, "application/x-www-form-urlencoded").
@@ -298,13 +298,17 @@ rewrite(#child{ip=Ip} = St, Method, Url) ->
             {Url, H};
         Data_s when Ip == undefined ->
             {Scheme, Auth, Host, Port, Path, Query} = Data_s,
-            New_url = proceed_rewrite_host(St, Scheme, Auth, Host, Port, Path, Query),
+            % trim dots
+            Host_clean = re:replace(Host, "(^\\.+)|(\\.+$)", "", [global,{return,list}]),
+            New_url = proceed_rewrite_host(St, Scheme, Auth, Host_clean, Port, Path, Query),
             rewrite_addr(St, Method, New_url, Data_s);
         Data_s ->
             Ip_s = mpln_misc_web:make_string(Ip),
             {Scheme, Auth, Host, Port, Path, Query} = Data_s,
+            % trim dots
+            Host_clean = re:replace(Host, "(^\\.+)|(\\.+$)", "", [global,{return,list}]),
             New_url = proceed_rewrite_host(St, Scheme, Auth, Ip_s, Port, Path, Query),
-            H = compose_headers(St, [], Method, Host, Path, Query),
+            H = compose_headers(St, [], Method, Host_clean, Path, Query),
             {New_url, H}
     end.
 

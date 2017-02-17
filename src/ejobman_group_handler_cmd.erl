@@ -89,7 +89,9 @@ process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid, conn=Conn, queue=Rqueu
                 {ok, {{_Ver, 502, _Txt} = Er, _Hdr, _Body}} -> process_bad_result(St, Job, Er);
                 {ok, {{_Ver, 503, _Txt} = Er, _Hdr, _Body}} -> process_bad_result(St, Job, Er);
                 {could_not_parse_as_http, _Txt} -> process_bad_result(St, Job, Res);
-                _ -> mpln_p_debug:ir({?MODULE, ?LINE, 'process_cmd_result unknown result', Res})
+                _ ->
+                    mpln_p_debug:ir({?MODULE, ?LINE, 'process_cmd_result unknown result', Res}),
+                    process_bad_result(St, Job, Res)
             end;
         _ -> mpln_p_debug:er({?MODULE, ?LINE, 'process_cmd_result job not found', Done})
     end,
@@ -105,14 +107,23 @@ process_bad_result(St, Job, Res) ->
     send_job_result(St, Job, Res),
     retry_job(St, Job, Res).
 
-send_job_result(#egh{error_mail = []} = St, Job, Res) ->
+send_job_result(#egh{error_mail = []}, _Job, _Res) ->
     ok;
 
-send_job_result(#egh{error_mail = Mails} = St, Job, Res) ->
+send_job_result(#egh{error_mail = Mails, error_mail_cmd = Cmd}, Job, Res) ->
     Job_bin = mpln_misc_web:make_term_binary(Job),
     Res_bin = mpln_misc_web:make_term_binary(Res),
     Body = <<Job_bin/binary, <<" ">>/binary, Res_bin/binary>>,
-    mpln_p_debug:sendmail(Mails, <<"ERROR_REPORT ERPHER">>, Body).
+
+    % concat list of mails to string
+    Mails_bin = mpln_misc_web:make_term_binary(string:join(lists:map(fun(Addr) -> binary_to_list(Addr) end, Mails), " ")),
+
+    % replace params in mail command
+    Cmd1 = binary:replace(Cmd, <<"{{subject}}">>, <<"ERROR_REPORT ERPHER">>),
+    Cmd2 = binary:replace(Cmd1, <<"{{mail}}">>, Mails_bin),
+    Cmd3 = binary:replace(Cmd2, <<"{{body}}">>, Body),
+
+    os:cmd(binary_to_list(Cmd3)).
 
 %%-----------------------------------------------------------------------------
 %%
