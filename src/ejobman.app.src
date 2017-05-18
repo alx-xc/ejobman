@@ -32,6 +32,6 @@
         ejobman_child_supervisor
     ]},
     {mod, {ejobman_app,[]}},
-    {applications, [kernel, stdlib, inets, ssl]}
+    {applications, [kernel, stdlib, inets, ssl, amqp_client]}
 ]}.
 
